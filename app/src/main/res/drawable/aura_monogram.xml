@@ -1,0 +1,15 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="64dp" android:height="64dp"
+    android:viewportWidth="64" android:viewportHeight="64">
+    <!-- Original AURA mark: an open listening ring and a clear A silhouette.
+         No text or raster scaling is needed at small launcher sizes. -->
+    <path android:fillColor="@android:color/transparent"
+        android:strokeColor="#CBA978" android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:pathData="M53.2,12.2 A29,29 0,1 0,60.8 35.4" />
+    <path android:fillColor="#E9D2AB"
+        android:pathData="M29.5,14 L34.5,14 L49,49 L42.2,49 L39.1,41 L24.9,41 L21.8,49 L15,49 Z M27.2,35 L36.8,35 L32,22.5 Z"
+        android:fillType="evenOdd" />
+    <path android:fillColor="#CBA978"
+        android:pathData="M49.5,18 A3.5,3.5 0,1 0,56.5 18 A3.5,3.5 0,1 0,49.5 18" />
+</vector>

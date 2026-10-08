@@ -1,0 +1,5 @@
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+<item><shape><solid android:color="#111315"/></shape></item>
+<!-- Fixed square bounds prevent a non-square host drawable from stretching the logo. -->
+<item android:width="72dp" android:height="72dp" android:gravity="center" android:drawable="@drawable/aura_monogram"/>
+</layer-list>
