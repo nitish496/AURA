@@ -8,7 +8,7 @@ AURA is a personal Android music player built for listening to songs already sto
 
 ## Why I built it
 
-I wanted an offline player for college, using my own local music library. I also wanted to learn by building an idea I cared about, rather than only following tutorials or attending hackathons. AURA has evolved through daily listening, screenshots, feedback, and repeated refinements. Development is AI-assisted; the project documents tested behavior honestly instead of claiming every problem is solved.
+I wanted an offline player for college, using my own local music library. I also wanted to learn by building an idea I cared about, rather than only following tutorials or attending hackathons. AURA has evolved through daily listening, feedback, and repeated refinements. Development is AI-assisted; the project documents tested behavior honestly instead of claiming every problem is solved.
 
 ## What makes it useful
 
@@ -57,8 +57,10 @@ The current source builds and passes lint with no errors. 211 plain-Java logic c
 
 ## Release history
 
-See [the documented timeline](docs/RELEASE_HISTORY.md). Earlier stages are described from saved records; they are not fabricated Git commits or reconstructed source releases. This repository starts with the preserved current source, version1.21.
+See [the documented timeline](docs/RELEASE_HISTORY.md). Earlier stages are described from saved records; they are not fabricated Git commits or reconstructed source releases. This repository starts with the preserved current source, version1.22.
 
-## Contributions
+## Contributions welcome
+
+We welcome contributions: bug fixes, performance improvements, accessibility, tests, and design refinements. Please open an issue to discuss substantial changes, then submit a focused pull request with testing notes.
 
 Report a bug with the app version, Android version, device model and reproduction steps. Do not include private songs or personal logs. No open-source licence has been selected yet; public visibility alone does not grant reuse rights.

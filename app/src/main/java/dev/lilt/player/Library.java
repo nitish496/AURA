@@ -29,7 +29,7 @@ public final class Library {
         try {
             JSONObject json=new JSONObject(prefs().getString("playlists","{}"));
             Iterator<String> keys=json.keys();
-            while(keys.hasNext()) { String key=keys.next(); JSONArray a=json.getJSONArray(key); List<String> ids=new ArrayList<>(); for(int i=0;i<a.length();i++) ids.add(a.getString(i)); result.put(key,ids); }
+            while(keys.hasNext()) { String key=keys.next(); JSONArray a=json.optJSONArray(key);if(a==null)continue;List<String> ids=new ArrayList<>();for(int i=0;i<a.length();i++){Object value=a.opt(i);if(value instanceof String&&!((String)value).isEmpty())ids.add((String)value);}result.put(key,ids); }
         } catch(JSONException ignored) {}
         return result;
     }
