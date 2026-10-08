@@ -13,5 +13,6 @@
             <intent-filter><action android:name="androidx.media3.session.MediaSessionService"/></intent-filter>
         </service>
 <activity android:name=".WidgetSettings" android:exported="true"><intent-filter><action android:name="android.appwidget.action.APPWIDGET_CONFIGURE"/></intent-filter></activity><receiver android:name=".PlayerWidget" android:exported="false" android:label="AURA Compact"><intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter><meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_compact"/></receiver><receiver android:name=".LargePlayerWidget" android:exported="false" android:label="AURA Player"><intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter><meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_large"/></receiver>
+<receiver android:name=".DeckPlayerWidget" android:exported="false" android:label="AURA Deck"><intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter><meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_deck"/></receiver>
     </application>
 </manifest>

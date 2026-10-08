@@ -22,6 +22,7 @@ public class PlayerWidget extends AppWidgetProvider {
     private static Bitmap widgetArt;
     private static String bitmapKey="";
     private static Bitmap backdropCover,backdropBitmap;
+    private static Bitmap deckBackdropCover,deckBackdropBitmap;
     private static final java.util.concurrent.ExecutorService disk=Executors.newSingleThreadExecutor();
     private static void requestArt(Context c,String uri,String custom){
         String key=uri+"|"+custom;
@@ -66,6 +67,12 @@ public class PlayerWidget extends AppWidgetProvider {
         int colour=ArtworkTheme.playerColor(pixels);
         Bitmap bg=Bitmap.createBitmap(720,144,Bitmap.Config.ARGB_8888);Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);paint.setColor(colour);new Canvas(bg).drawRoundRect(0,0,720,144,28,28,paint);backdropCover=cover;backdropBitmap=bg;return bg;
     }
+    private static Bitmap deckBackdrop(Bitmap cover){
+        if(cover==deckBackdropCover&&deckBackdropBitmap!=null)return deckBackdropBitmap;
+        Bitmap sample=Bitmap.createScaledBitmap(cover,24,24,true);int[] pixels=new int[576];sample.getPixels(pixels,0,24,0,0,24,24);
+        Bitmap bg=Bitmap.createBitmap(720,336,Bitmap.Config.ARGB_8888);Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);paint.setColor(ArtworkTheme.playerColor(pixels));
+        new Canvas(bg).drawRoundRect(0,0,720,336,48,48,paint);deckBackdropCover=cover;deckBackdropBitmap=bg;return bg;
+    }
     public static android.content.SharedPreferences prefs(Context c){return c.getSharedPreferences("widgets",Context.MODE_PRIVATE);}
     public static void publish(Context c,Player player){
         CharSequence title=player.getMediaMetadata().title,artist=player.getMediaMetadata().artist;
@@ -83,31 +90,33 @@ public class PlayerWidget extends AppWidgetProvider {
         settings.edit().putString("title",titleText).putString("artist",artistText)
                 .putBoolean("playing",playing).putBoolean("has_queue",hasQueue).putString("uri",uri).putString("custom",custom).apply();
         AppWidgetManager manager=AppWidgetManager.getInstance(c);
-        if(manager.getAppWidgetIds(new ComponentName(c,PlayerWidget.class)).length>0||manager.getAppWidgetIds(new ComponentName(c,LargePlayerWidget.class)).length>0)requestArt(c.getApplicationContext(),uri,custom);
+        if(manager.getAppWidgetIds(new ComponentName(c,PlayerWidget.class)).length>0||manager.getAppWidgetIds(new ComponentName(c,LargePlayerWidget.class)).length>0||manager.getAppWidgetIds(new ComponentName(c,DeckPlayerWidget.class)).length>0)requestArt(c.getApplicationContext(),uri,custom);
         refresh(c);
     }
-    public static void refresh(Context c){AppWidgetManager manager=AppWidgetManager.getInstance(c);for(Class<?> provider:new Class<?>[]{PlayerWidget.class,LargePlayerWidget.class})for(int id:manager.getAppWidgetIds(new ComponentName(c,provider)))update(c,manager,id);}
+    public static void refresh(Context c){AppWidgetManager manager=AppWidgetManager.getInstance(c);for(Class<?> provider:new Class<?>[]{PlayerWidget.class,LargePlayerWidget.class,DeckPlayerWidget.class})for(int id:manager.getAppWidgetIds(new ComponentName(c,provider)))update(c,manager,id);}
     public static void update(Context c,AppWidgetManager m,int id){
         AppWidgetProviderInfo info=m.getAppWidgetInfo(id);boolean large=info!=null&&info.provider.getClassName().endsWith("LargePlayerWidget");
-        RemoteViews v=new RemoteViews(c.getPackageName(),large?R.layout.widget_large:R.layout.widget_compact);
-        int backgroundView=large?R.id.widget_root:R.id.widget_panel;
+        boolean deck=info!=null&&info.provider.getClassName().endsWith("DeckPlayerWidget");
+        RemoteViews v=new RemoteViews(c.getPackageName(),deck?R.layout.widget_deck:large?R.layout.widget_large:R.layout.widget_compact);
+        int backgroundView=large||deck?R.id.widget_root:R.id.widget_panel;
         int theme=prefs(c).getInt("theme:"+id,3);int ink=theme==1?0xff151719:theme==2?0xff271c00:0xfff3f4f5;
         v.setInt(backgroundView,"setBackgroundResource",theme==1?R.drawable.widget_light:theme==2?R.drawable.widget_gold:R.drawable.widget_dark);
         Bitmap cover=bitmapKey.equals(requestedArt)?widgetArt:null;
         boolean hasArt=cover!=null;
         if(!hasArt){ink=Color.WHITE;v.setInt(backgroundView,"setBackgroundResource",R.drawable.widget_black);}
         v.setImageViewBitmap(R.id.widget_cover,cover);
-        v.setImageViewBitmap(R.id.widget_background,hasArt&&theme==3?backdrop(cover):null);
+        v.setImageViewBitmap(R.id.widget_background,hasArt&&theme==3?(deck?deckBackdrop(cover):backdrop(cover)):null);
         if(theme==3&&hasArt)v.setInt(backgroundView,"setBackgroundResource",android.R.color.transparent);
         v.setTextViewText(R.id.widget_title,prefs(c).getString("title","Choose a song"));v.setTextViewText(R.id.widget_artist,prefs(c).getString("artist","Open AURA"));
         for(int view:new int[]{R.id.widget_title,R.id.widget_artist,R.id.widget_previous,R.id.widget_play,R.id.widget_next,R.id.widget_settings})v.setTextColor(view,ink);
         v.setTextViewText(R.id.widget_play,prefs(c).getBoolean("playing",false)?"Ⅱ":"▶");v.setContentDescription(R.id.widget_play,prefs(c).getBoolean("playing",false)?"Pause music":"Play music");
         Intent open=new Intent(c,MainActivity.class);v.setOnClickPendingIntent(R.id.widget_title,PendingIntent.getActivity(c,id,open,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE));
         Intent config=new Intent(c,WidgetSettings.class).putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID,id);v.setOnClickPendingIntent(R.id.widget_settings,PendingIntent.getActivity(c,id+10000,config,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE));
-        for(int i=0;i<3;i++){int view=new int[]{R.id.widget_previous,R.id.widget_play,R.id.widget_next}[i];Intent action=new Intent(c,PlayerWidget.class).setAction(ACTION).putExtra("control",i);v.setOnClickPendingIntent(view,PendingIntent.getBroadcast(c,i,action,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE));}
+        for(int i=0;i<3;i++){int view=new int[]{R.id.widget_previous,R.id.widget_play,R.id.widget_next}[i];Intent action=new Intent(c,PlayerWidget.class).setAction(ACTION).putExtra("control",i);PendingIntent control=PendingIntent.getBroadcast(c,i,action,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);v.setOnClickPendingIntent(view,control);if(deck&&i==1){v.setOnClickPendingIntent(R.id.widget_cover,control);v.setContentDescription(R.id.widget_cover,prefs(c).getBoolean("playing",false)?"Album cover, pause music":"Album cover, play music");}}
         if(!prefs(c).getBoolean("has_queue",false)){
             v.setOnClickPendingIntent(R.id.widget_play,PendingIntent.getActivity(c,id,open,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE));
             v.setContentDescription(R.id.widget_play,"Open AURA to choose music");
+            if(deck){v.setOnClickPendingIntent(R.id.widget_cover,PendingIntent.getActivity(c,id,open,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE));v.setContentDescription(R.id.widget_cover,"Open AURA to choose music");}
         }
         m.updateAppWidget(id,v);
     }
@@ -115,6 +124,7 @@ public class PlayerWidget extends AppWidgetProvider {
         requestArt(c.getApplicationContext(),prefs(c).getString("uri",""),prefs(c).getString("custom",""));
         for(int id:ids)update(c,m,id);
     }
+    @Override public void onAppWidgetOptionsChanged(Context c,AppWidgetManager m,int id,Bundle options){update(c,m,id);}
     @Override public void onDeleted(Context c,int[] ids){for(int id:ids)prefs(c).edit().remove("theme:"+id).apply();}
     @Override public void onReceive(Context c,Intent intent){
         super.onReceive(c,intent);
@@ -157,7 +167,7 @@ public class PlayerWidget extends AppWidgetProvider {
                 if(action==0)player.seekToPreviousMediaItem();
                 else if(action==2)player.seekToNextMediaItem();
                 else if(player.getPlayWhenReady())player.pause();
-                else {player.prepare();player.play();}
+                else {if(player.getPlaybackState()==Player.STATE_ENDED)player.seekTo(0);if(player.getPlaybackState()==Player.STATE_IDLE)player.prepare();player.play();}
                 // Keep the controller connected briefly for the asynchronous service state;
                 // never publish the pre-command snapshot over the service's newer update.
                 handler.postDelayed(()->{

@@ -53,11 +53,15 @@ Stack: Java17, native Android views, MediaStore, AndroidX Media3. Minimum Androi
 
 ## Verification and current limits
 
-The current source builds and passes lint with no errors. 211 plain-Java logic checks and45 structural/contrast checks passed in the development workspace. Focused Android15 emulator checks include navigation and stationary Search artwork loading. The author's latest phone feedback reports nearly instant loading; there is no measured before/after benchmark. Intermittent phone crashes, long listening stability and physical-output crossfade smoothness still need regression testing. Notification styling and spatial features vary by device.
+The current source builds and passes lint with no errors. 211 plain-Java logic checks and48 structural/contrast checks passed in the development workspace. Focused Android15 emulator checks include navigation and stationary Search artwork loading. The author's latest phone feedback reports nearly instant loading; there is no measured before/after benchmark. Intermittent phone crashes, long listening stability and physical-output crossfade smoothness still need regression testing. Notification styling and spatial features vary by device.
 
 ## Release history
 
-See [the documented timeline](docs/RELEASE_HISTORY.md). Earlier stages are described from saved records; they are not fabricated Git commits or reconstructed source releases. This repository starts with the preserved current source, version1.22.
+See [the documented timeline](docs/RELEASE_HISTORY.md). Earlier stages are described from saved records; they are not fabricated Git commits or reconstructed source releases. This repository starts with the preserved current source, version1.23.
+
+## AURA Deck widget
+
+Add **AURA Deck** from your launcher’s Widgets menu. Its rounded artwork-themed layout has title and artist, Previous/Next, play/pause, and configurable themes. Tap the cover to play or pause. With no artwork the background is black. It resizes horizontally and vertically; existing Compact and Player widgets remain available. Artwork is stationary: rotation and drag-to-seek are not implemented. No bit-perfect or audio-format claims are displayed.
 
 ## Contributions welcome
 

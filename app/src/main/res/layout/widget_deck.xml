@@ -1,0 +1,17 @@
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/widget_root" android:layout_width="match_parent" android:layout_height="match_parent" android:background="@drawable/widget_dark">
+ <ImageView android:id="@+id/widget_background" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:importantForAccessibility="no"/>
+ <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="horizontal" android:gravity="center_vertical" android:padding="8dp">
+  <ImageView android:id="@+id/widget_cover" android:layout_width="56dp" android:layout_height="56dp" android:scaleType="fitCenter" android:contentDescription="Album cover, play music"/>
+  <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:orientation="vertical" android:gravity="center_vertical" android:layout_marginStart="8dp">
+<LinearLayout android:layout_width="match_parent" android:layout_height="22dp" android:gravity="center_vertical">   <TextView android:id="@+id/widget_title" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="Choose a song" android:textSize="15sp" android:textStyle="bold" android:maxLines="1" android:ellipsize="end"/>  <TextView android:id="@+id/widget_settings" android:visibility="gone" android:layout_width="48dp" android:layout_height="48dp" android:gravity="center" android:text="⚙" android:textSize="20sp" android:contentDescription="Customize widget"/></LinearLayout>
+   <TextView android:id="@+id/widget_artist" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:text="Open AURA" android:textSize="12sp" android:maxLines="1" android:ellipsize="end"/>
+   <LinearLayout android:layout_width="match_parent" android:layout_height="48dp" android:gravity="center" android:layout_marginTop="2dp">
+    <TextView android:id="@+id/widget_previous" android:layout_width="0dp" android:layout_weight="1" android:layout_height="48dp" android:gravity="center" android:text="Ⅰ◀" android:textSize="22sp" android:contentDescription="Previous song"/>
+    <TextView android:id="@+id/widget_play" android:layout_width="0dp" android:layout_weight="1" android:layout_height="48dp" android:gravity="center" android:text="▶" android:textSize="28sp"/>
+    <TextView android:id="@+id/widget_next" android:layout_width="0dp" android:layout_weight="1" android:layout_height="48dp" android:gravity="center" android:text="▶Ⅰ" android:textSize="22sp" android:contentDescription="Next song"/>
+
+   </LinearLayout>
+  </LinearLayout>
+
+ </LinearLayout>
+</FrameLayout>
