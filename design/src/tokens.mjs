@@ -9,7 +9,7 @@ export const color = {
     textDisabled: '#4A4A4F', accent: '#FF6A3D', onAccent: '#0B0B0C', error: '#FF6961',
     glassTint: 'rgba(28,28,30,0.60)', glassTintFallback: 'rgba(30,30,33,0.92)',
     glassRimTop: 'rgba(255,255,255,0.35)', glassRimBottom: 'rgba(255,255,255,0.05)', glassShadow: 'rgba(0,0,0,0.35)',
-    scrim: 'rgba(0,0,0,0.45)', skeleton: '#1A1A1D', skeletonHighlight: '#242428', placeholder: '#1C1C1F',
+    scrim: 'rgba(0,0,0,0.45)', skeleton: '#1A1A1D', skeletonHighlight: '#242428', placeholder: '#1C1C1F', placeholderText: '#6A6A70', toggleOff: '#39393D',
   },
   light: {
     canvas: '#FFFFFF', surface: '#F4F4F6', surfaceElevated: '#FFFFFF', fill: '#EDEDF0', fillStrong: '#E2E2E6',
@@ -17,7 +17,7 @@ export const color = {
     textDisabled: '#B8B8BE', accent: '#C23A12', onAccent: '#FFFFFF', error: '#C4261D',
     glassTint: 'rgba(255,255,255,0.65)', glassTintFallback: 'rgba(250,250,252,0.94)',
     glassRimTop: 'rgba(255,255,255,0.90)', glassRimBottom: 'rgba(255,255,255,0.30)', glassShadow: 'rgba(0,0,0,0.12)',
-    scrim: 'rgba(0,0,0,0.30)', skeleton: '#EFEFF2', skeletonHighlight: '#F7F7F9', placeholder: '#E9E9EC',
+    scrim: 'rgba(0,0,0,0.30)', skeleton: '#EFEFF2', skeletonHighlight: '#F7F7F9', placeholder: '#E9E9EC', placeholderText: '#8E8E94', toggleOff: '#E3E3E8',
   },
 };
 
