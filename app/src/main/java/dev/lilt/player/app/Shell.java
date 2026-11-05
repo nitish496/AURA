@@ -651,6 +651,7 @@ public final class Shell implements AppHost, Navigator {
         else if (!want && backRegistered) { Api33.unregister(this); backRegistered = false; }
     }
 
+    @android.annotation.TargetApi(33)
     private static final class Api33 {
         static void register(Shell s) {
             android.window.OnBackInvokedCallback cb = () -> { if (!s.handleBack()) s.leave(); };
