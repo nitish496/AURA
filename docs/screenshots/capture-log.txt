@@ -1,1 +1,14 @@
 MediaStore audio rows: 46
+captured 01-home
+captured 02-browse
+captured 03-search
+captured 04-library
+captured 05-album
+captured 06-artist
+captured 07-now-playing
+captured 08-lyrics
+captured 09-queue
+captured 10-equalizer
+captured 11-replay
+captured 12-home-light
+captured 13-now-playing-light
