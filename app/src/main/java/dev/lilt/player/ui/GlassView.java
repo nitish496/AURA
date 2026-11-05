@@ -46,7 +46,6 @@ import dev.lilt.player.DesignTokens;
  */
 public class GlassView extends FrameLayout {
     /** True while any GlassView records a backdrop, so glass never draws into a backdrop. */
-    private static boolean capturing;
 
     private ColorRoles roles;
     private final GlassDrawable material;
@@ -181,10 +180,11 @@ public class GlassView extends FrameLayout {
      * list is rebuilt by View.draw(); recording it empty during a capture clears its dirty flag,
      * so the real frame reuses the empty list and the view (e.g. every TopBar button, which sits
      * inside the content the tab bar / mini player capture) never appears. Only the blur layer
-     * is skipped during a capture (no glass-in-glass recursion); the material still draws.
+     * is skipped while THIS view's own engine is recording (a node must not draw itself); nested
+     * glass keeps drawing its previous-frame blur, so its display list stays complete.
      */
     @Override protected void onDraw(Canvas canvas) {
-        if (!capturing && engine != null && blurActive() && canvas.isHardwareAccelerated()) engine.draw(canvas);
+        if (engine != null && blurActive() && canvas.isHardwareAccelerated()) engine.draw(canvas);
         material.draw(canvas);
     }
 
@@ -196,6 +196,7 @@ public class GlassView extends FrameLayout {
         private final RenderNode node = new RenderNode("aura-glass");
         private final int[] glassAt = new int[2], sourceAt = new int[2];
         private int pad;
+        private boolean recording;
 
         void setBlur(float radiusPx) {
             pad = (int) Math.ceil(radiusPx);
@@ -215,16 +216,16 @@ public class GlassView extends FrameLayout {
             try {
                 c.drawColor(baseColor);
                 c.translate(pad - (glassAt[0] - sourceAt[0]), pad - (glassAt[1] - sourceAt[1]));
-                capturing = true;
+                recording = true;
                 source.draw(c);
             } finally {
-                capturing = false;
+                recording = false;
                 node.endRecording();
             }
         }
 
         void draw(Canvas canvas) {
-            if (!node.hasDisplayList()) return;
+            if (recording || !node.hasDisplayList()) return;
             canvas.save();
             canvas.translate(-pad, -pad);
             canvas.drawRenderNode(node);

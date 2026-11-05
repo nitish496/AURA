@@ -67,6 +67,7 @@ public final class Track {
         String trackId=id.startsWith(REMOTE_PREFIX)?id:REMOTE_PREFIX+id;
         String albumName=album==null||album.trim().isEmpty()?REMOTE_SINGLE:album.trim();
         String art=artworkUrl==null||artworkUrl.trim().isEmpty()?null:artworkUrl.trim();
+        title=clean(title);artist=clean(artist);albumName=clean(albumName);
         return new Track(trackId,title,artist,albumName,Uri.parse(streamUrl.trim()),Math.max(0,durationMs),-1,0,0,artist,SOURCE_AUDIUS,art,genre,artistId,permalink);
     }
 
@@ -153,6 +154,13 @@ public final class Track {
         if(!remote||!SOURCE_AUDIUS.equals(source))return null;
         String art=string(o,"artworkUrl");
         return remote(id,string(o,"title"),string(o,"artist"),string(o,"album"),uri,art.isEmpty()?null:art,duration,string(o,"genre"),string(o,"artistId"),string(o,"permalink"));
+    }
+
+    /** Catalogue text without emoji (the design bans them); unchanged when nothing else would be left. */
+    private static String clean(String s) {
+        if(s==null)return s;
+        String stripped=dev.lilt.player.stream.RemoteText.stripEmoji(s);
+        return stripped==null||stripped.trim().isEmpty()?s:stripped;
     }
 
     /** Null-safe string read (Android's optString turns JSON null into "null"). */
