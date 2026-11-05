@@ -17,6 +17,7 @@ import dev.lilt.player.audio.ListeningStats;
 import dev.lilt.player.screens.library.Kit;
 import dev.lilt.player.screens.library.ListScreen;
 import dev.lilt.player.stream.AudiusClient;
+import dev.lilt.player.stream.TrendingStore;
 import dev.lilt.player.ui.AlbumCard;
 import dev.lilt.player.ui.ArtworkPalette;
 import dev.lilt.player.ui.EmptyState;
@@ -50,7 +51,9 @@ public final class HomeScreen extends ListScreen {
     private LinearLayout header;
     private List<Mix> mixes = new ArrayList<>();
     private List<Track> trending = new ArrayList<>();
-    private boolean mixesLoading, trendingLoading, trendingTried;
+    private boolean mixesLoading, trendingLoading, trendingDiskRead;
+    private int trendingFailures;
+    private long trendingAt;
     private boolean destroyed;
     private long lastMixesAt, lastTrendingTry;
 
@@ -103,11 +106,14 @@ public final class HomeScreen extends ListScreen {
                 recent = s.topTracks(100, now - MixRules.RECENT_MS);
                 all = s.topTracks(1000, 0);
             } catch (RuntimeException ignored) { }
-            final List<ListeningLedger.TrackStat> r = recent, a = all;
+            // Library lookups, mood prefs and the mix maths all run here, not on the main thread.
+            List<Mix> built;
+            try { built = computeMixes(recent, all, now); } catch (RuntimeException failure) { built = new ArrayList<>(); }
+            final List<Mix> result = built;
             host.main().post(() -> {
                 mixesLoading = false;
                 if (destroyed) return;
-                mixes = computeMixes(r, a, now);
+                mixes = result;
                 refreshItems();
             });
         });
@@ -151,19 +157,46 @@ public final class HomeScreen extends ListScreen {
     }
 
     private void loadTrending() {
-        if (trendingTried || trendingLoading || context == null || !SettingsScreen.showCatalogue(context)) return;
-        long t = android.os.SystemClock.elapsedRealtime();
-        if (lastTrendingTry != 0 && t - lastTrendingTry < 60_000) return;
-        lastTrendingTry = t;
+        if (trendingLoading || context == null || !SettingsScreen.showCatalogue(context)) return;
+        long mono = android.os.SystemClock.elapsedRealtime();
+        if (trendingFailures > 0 && mono - lastTrendingTry < TrendingStore.backoffMs(trendingFailures)) return;
+        if (!trending.isEmpty() && !TrendingStore.stale(trendingAt, System.currentTimeMillis())) return;
+        lastTrendingTry = mono;
         trendingLoading = true;
+        final boolean needDisk = trending.isEmpty() && !trendingDiskRead;
+        trendingDiskRead = true;
         host.io().execute(() -> {
+            TrendingStore store = new TrendingStore(context);
+            long fetchedAt = trendingAt;
+            if (needDisk) {
+                // Instant paint from the last session's list; the network refresh follows if stale.
+                final TrendingStore.Snapshot disk = store.read();
+                if (!disk.tracks.isEmpty()) {
+                    fetchedAt = disk.fetchedAt;
+                    host.main().post(() -> {
+                        if (destroyed || !trending.isEmpty()) return;
+                        trending = disk.tracks;
+                        trendingAt = disk.fetchedAt;
+                        refreshItems();
+                    });
+                }
+            }
             List<Track> found = null;
-            try { found = AudiusClient.get(context).trending(null, null, 20); } catch (Exception ignored) { }
+            final boolean attempt = TrendingStore.stale(fetchedAt, System.currentTimeMillis());
+            if (attempt) {
+                try { found = AudiusClient.get(context).trending(null, null, 20); } catch (Exception ignored) { }
+                if (found != null && !found.isEmpty()) store.write(found, System.currentTimeMillis());
+            }
             final List<Track> result = found;
             host.main().post(() -> {
                 trendingLoading = false;
                 if (destroyed) return;
-                if (result != null && !result.isEmpty()) { trending = result; trendingTried = true; refreshItems(); }
+                if (result != null && !result.isEmpty()) {
+                    trending = result; trendingAt = System.currentTimeMillis(); trendingFailures = 0;
+                    refreshItems();
+                } else if (attempt) {
+                    trendingFailures = Math.min(trendingFailures + 1, 6); // back off, keep showing the cached list
+                }
             });
         });
     }

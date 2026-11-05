@@ -31,11 +31,38 @@ public final class Library {
         }
         return tracks;
     }
+    /**
+     * Cheap fingerprint of the audio store (MediaStore version + volume generation, API 30+); equal
+     * fingerprints mean nothing was added, removed or edited. Empty when unavailable (API 26-29),
+     * which callers treat as "always rescan". Take it before scanning so edits made during the
+     * scan show up as a mismatch next time.
+     */
+    public String storeSignature() {
+        if(Build.VERSION.SDK_INT<30)return "";
+        try {
+            String volume=MediaStore.VOLUME_EXTERNAL_PRIMARY;
+            return MediaStore.getVersion(context,volume)+"#"+MediaStore.getGeneration(context,volume);
+        } catch(RuntimeException unavailable) { return ""; }
+    }
     public SharedPreferences prefs() { return context.getSharedPreferences("library",Context.MODE_PRIVATE); }
-    public Map<String,List<String>> playlists() {
+    private String playlistsRaw; private Map<String,List<String>> playlistsParsed;
+    /** Parsed once per stored value; every call returns a fresh mutable copy. */
+    public synchronized Map<String,List<String>> playlists() {
+        String raw=prefs().getString("playlists","{}");
+        if(raw.equals(playlistsRaw)&&playlistsParsed!=null)return copy(playlistsParsed);
+        Map<String,List<String>> parsed=parsePlaylists(raw);
+        playlistsRaw=raw;playlistsParsed=parsed;
+        return copy(parsed);
+    }
+    private static Map<String,List<String>> copy(Map<String,List<String>> src) {
+        Map<String,List<String>> out=new LinkedHashMap<>();
+        for(Map.Entry<String,List<String>> e:src.entrySet())out.put(e.getKey(),new ArrayList<>(e.getValue()));
+        return out;
+    }
+    private static Map<String,List<String>> parsePlaylists(String raw) {
         Map<String,List<String>> result=new LinkedHashMap<>();
         try {
-            JSONObject json=new JSONObject(prefs().getString("playlists","{}"));
+            JSONObject json=new JSONObject(raw);
             Iterator<String> keys=json.keys();
             while(keys.hasNext()) { String key=keys.next(); JSONArray a=json.optJSONArray(key);if(a==null)continue;List<String> ids=new ArrayList<>();for(int i=0;i<a.length();i++){Object value=a.opt(i);if(value instanceof String&&!((String)value).isEmpty())ids.add((String)value);}result.put(key,ids); }
         } catch(JSONException ignored) {}

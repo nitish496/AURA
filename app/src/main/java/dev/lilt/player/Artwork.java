@@ -53,7 +53,7 @@ public final class Artwork {
     private static final Object[] sourceLocks=new Object[32];
     static{for(int i=0;i<sourceLocks.length;i++)sourceLocks[i]=new Object();}
     private static Object sourceLock(String key){return sourceLocks[Math.floorMod(key.hashCode(),sourceLocks.length)];}
-    private static final int DECODE_SIZE=900;
+    private static final int DECODE_SIZE=900,SMALL_DISK_SIZE=320;
     public Artwork(Context context,Library library){this.context=context.getApplicationContext();this.library=library;}
     /** Warm only the first visible shelves; return on readiness or a bounded deadline. */
     public void warm(List<Track> tracks,Runnable done){
@@ -64,7 +64,10 @@ public final class Artwork {
     public void load(ImageView view,Track track) {
         if(closed)return;
         if(track.isRemote()){loadRemote(view,track);return;}
-        Uri custom=library.artwork(track);int size=displaySize(view);String sourceIdentity=track.id+":"+track.uri+":"+track.dateAdded+":"+custom;String identity=sourceIdentity+":"+size;LruCache<String,Bitmap> rendered=rendered(size);
+        Uri custom=library.artwork(track);int size=displaySize(view);// Local covers are keyed per ALBUM (one extraction + one disk file shared by its tracks) when
+        // MediaStore gives an album id and there is no custom cover; custom covers keep per-track identity.
+        final boolean albumScoped=custom==null&&track.albumId>0;
+        String sourceIdentity=albumScoped?"album:"+track.albumId+":"+track.albumKey():track.id+":"+track.uri+":"+track.dateAdded+":"+custom;String identity=sourceIdentity+":"+size;LruCache<String,Bitmap> rendered=rendered(size);
         if(identity.equals(view.getTag())&&view.getDrawable()!=null){viewHits.incrementAndGet();return;}
         view.setTag(identity);view.setContentDescription("Album cover for "+track.album);view.setClipToOutline(true);
         String key=identity;
@@ -82,12 +85,15 @@ public final class Artwork {
             pending=new ArrayList<>();pending.add(new WeakReference<>(view));requests.put(key,pending);
         }
         boolean accepted=submit(()-> {
-            File saved=new File(context.getCacheDir(),"cover-"+cacheName(sourceIdentity)+".png");
+            final int diskSize=albumScoped&&size<=512?SMALL_DISK_SIZE:DECODE_SIZE;
+            File saved=new File(context.getCacheDir(),"cover-"+cacheName(albumScoped?sourceIdentity+(diskSize==DECODE_SIZE?":L":":S"):sourceIdentity)+".png");
             Bitmap bitmap=decodeDisk(saved,size);boolean diskHit=bitmap!=null;if(diskHit)diskHits.incrementAndGet();boolean fromCustom=diskHit&&custom!=null&&new File(saved.getPath()+".custom").exists();
             // Different covers decode concurrently; source() coalesces matching URI keys.
             {
                 if(closed)return;
                 if(!diskHit&&custom!=null){bitmap=source(custom,"custom:"+custom,true);fromCustom=bitmap!=null;}
+                if(bitmap==null&&albumScoped)bitmap=source(track.uri,"embedded:"+sourceIdentity,false);
+                // An album whose first track has no art must not hide covers embedded in its other tracks.
                 if(bitmap==null)bitmap=source(track.uri,"embedded:"+track.id+":"+track.uri+":"+track.dateAdded,false);
             }
             if(closed)return;
@@ -110,7 +116,7 @@ public final class Artwork {
                 for(WeakReference<ImageView> reference:waiting){ImageView image=reference.get();if(image!=null&&identity.equals(image.getTag())){actualViews.put(image,actual);image.setImageBitmap(display);}}
             });
             // One write per cover: other sizes of the same cover that missed the disk concurrently skip it.
-            if(actual&&!diskHit&&!closed&&persisting.add(saved.getPath())){final Bitmap persist=bitmap;final boolean persistCustom=fromCustom;try{diskWriter.execute(()->{try{if(closed||saved.isFile())return;File temporary=new File(saved.getPath()+"."+Thread.currentThread().getId()+".tmp");try(FileOutputStream out=new FileOutputStream(temporary)){framed(persist,DECODE_SIZE).compress(Bitmap.CompressFormat.PNG,100,out);}catch(IOException ignored){temporary.delete();return;}if(closed){temporary.delete();return;}if(!temporary.renameTo(saved)){temporary.delete();return;}File marker=new File(saved.getPath()+".custom");if(persistCustom)try{marker.createNewFile();}catch(IOException ignored){}else marker.delete();pruneDisk();}finally{persisting.remove(saved.getPath());}});}catch(RejectedExecutionException ignored){persisting.remove(saved.getPath());/* Cache persistence is optional; never block visible decoding. */}}
+            if(actual&&!diskHit&&!closed&&persisting.add(saved.getPath())){final Bitmap persist=bitmap;final boolean persistCustom=fromCustom;try{diskWriter.execute(()->{try{if(closed||saved.isFile())return;File temporary=new File(saved.getPath()+"."+Thread.currentThread().getId()+".tmp");try(FileOutputStream out=new FileOutputStream(temporary)){framed(persist,diskSize).compress(Bitmap.CompressFormat.PNG,100,out);}catch(IOException ignored){temporary.delete();return;}if(closed){temporary.delete();return;}if(!temporary.renameTo(saved)){temporary.delete();return;}File marker=new File(saved.getPath()+".custom");if(persistCustom)try{marker.createNewFile();}catch(IOException ignored){}else marker.delete();pruneDisk();}finally{persisting.remove(saved.getPath());}});}catch(RejectedExecutionException ignored){persisting.remove(saved.getPath());/* Cache persistence is optional; never block visible decoding. */}}
 
         });
         if(!accepted){synchronized(requests){requests.remove(key);}view.setTag(null);}
