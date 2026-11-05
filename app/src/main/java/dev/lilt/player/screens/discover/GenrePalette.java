@@ -24,11 +24,11 @@ public final class GenrePalette {
     static {
         put("Electronic", 0xFF2D4963);   // steel
         put("Hip-Hop/Rap", 0xFF8A3A22);  // rust
-        put("Pop", 0xFF1E5260);          // petrol
+        put("Pop", 0xFF2E5A4C);          // spruce
         put("R&B/Soul", 0xFF6A4128);     // umber
-        put("Alternative", 0xFF4E5930);  // olive
+        put("Alternative", 0xFF3A4E5E);  // harbour
         put("Rock", 0xFF6E2A28);         // oxblood
-        put("Lo-Fi", 0xFF56602F);        // moss olive
+        put("Lo-Fi", 0xFF4E5930);        // olive
         put("House", 0xFF2B4A6F);        // denim
         put("Techno", 0xFF38383C);       // graphite
         put("Drum & Bass", 0xFF8A4A2C);  // clay
@@ -62,7 +62,7 @@ public final class GenrePalette {
     public static int color(String genre) {
         Integer c = genre == null ? null : BY_GENRE.get(genre);
         int base = c != null ? c : ROTATION[Initials.tone(genre == null ? "" : genre, ROTATION.length)];
-        return ColorMath.ensureBackgroundFor(base, ColorRoles.ON_ART_PRIMARY, 4.6);
+        return ColorMath.ensureBackgroundFor(ColorMath.limitSaturation(base, 0.55f), ColorRoles.ON_ART_PRIMARY, 4.6);
     }
 
     /** Genres with a curated colour. */
