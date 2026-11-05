@@ -106,9 +106,11 @@ public final class FloatingChrome extends ViewGroup {
         requestLayout();
     }
 
-    /** Space (px) the expanded chrome covers from the window bottom, for content padding. */
-    public int coveredHeight(int navInset, boolean withMini) {
-        return navInset + gap / 2 + tabH + (withMini ? miniH + gap : 0) + gap * 2;
+    /** Space (px) the chrome covers from the window bottom, for content padding (expanded state). */
+    public int coveredHeight(boolean withMini, boolean forSearch) {
+        int row = forSearch ? tabMin : tabH;
+        int lift = forSearch ? Math.max(baseMargin(), keyboardInset > 0 ? keyboardInset + gap : 0) : baseMargin();
+        return lift + row + gap + (withMini ? miniH + gap : 0);
     }
 
     public int baseMargin() { return Math.max(bottomInset, Ui.dp(getContext(), 16)) + Ui.dp(getContext(), 4); }

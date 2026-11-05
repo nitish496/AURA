@@ -28,7 +28,7 @@ final class Menus {
     Menus(Shell shell) {
         this.shell = shell;
         this.activity = shell.activity();
-        this.roles = shell.colors();
+        this.roles = shell.colors0();
     }
 
     private LibraryRepoImpl repo() { return shell.repoImpl(); }
@@ -72,14 +72,17 @@ final class Menus {
         shell.showMenu(anchor, a);
     }
 
-    void collection(String title, List<Track> tracks, View anchor) {
-        if (tracks == null || tracks.isEmpty()) return;
+    void collection(String title, List<Track> tracks, View anchor, List<MenuAction> extra) {
+        if (tracks == null) return;
+        if (tracks.isEmpty() && (extra == null || extra.isEmpty())) return;
         List<MenuAction> a = new ArrayList<>();
-        a.add(new MenuAction("Play", "play", () -> hub().play(tracks, 0, false)));
-        a.add(new MenuAction("Shuffle", "shuffle", () -> hub().play(tracks, 0, true)));
-        a.add(new MenuAction("Play Next", "play_next", () -> { hub().playAllNext(tracks); shell.toast("Playing Next"); }));
-        a.add(new MenuAction("Add to Queue", "add_to_queue", () -> { hub().addAllToQueue(tracks); shell.toast("Added to Queue"); }));
-        a.add(new MenuAction("Add to Playlist…", "playlist_add", () -> playlistPicker(tracks)).group());
+        if (!tracks.isEmpty()) {
+            a.add(new MenuAction("Play", "play", () -> hub().play(tracks, 0, false)));
+            a.add(new MenuAction("Shuffle", "shuffle", () -> hub().play(tracks, 0, true)));
+            a.add(new MenuAction("Play Next", "play_next", () -> { hub().playAllNext(tracks); shell.toast("Playing Next"); }));
+            a.add(new MenuAction("Add to Queue", "add_to_queue", () -> { hub().addAllToQueue(tracks); shell.toast("Added to Queue"); }));
+            a.add(new MenuAction("Add to Playlist…", "playlist_add", () -> playlistPicker(tracks)).group());
+        }
         final List<Track> unsaved = new ArrayList<>();
         for (Track t : tracks) if (t.isRemote() && !repo().isSaved(t.id)) unsaved.add(t);
         if (!unsaved.isEmpty()) {
@@ -87,6 +90,10 @@ final class Menus {
                 for (Track t : unsaved) repo().setSaved(t, true);
                 shell.toast("Saved to Library");
             }));
+        }
+        if (extra != null) {
+            boolean firstExtra = true;
+            for (MenuAction e : extra) { a.add(firstExtra && !a.isEmpty() ? e.group() : e); firstExtra = false; }
         }
         shell.showMenu(anchor, a);
     }

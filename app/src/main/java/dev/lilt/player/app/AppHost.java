@@ -42,6 +42,12 @@ public interface AppHost {
     int contentWidthDp();
     /** Glass context menu for a list of tracks (album/playlist: play, shuffle, add to queue, save). */
     void showCollectionMenu(String title, List<Track> tracks, View anchor);
+    /** As {@link #showCollectionMenu(String, List, View)} with extra rows appended as a last group (rename, delete...). */
+    void showCollectionMenu(String title, List<Track> tracks, View anchor, List<MenuAction> extra);
+    /** Opens the system image picker and stores the choice as the cover of {@code track}'s local album. */
+    void chooseCover(Track track);
+    /** Removes a custom album cover. */
+    void resetCover(Track track);
 
     void openNowPlaying();
     void openLyrics();
