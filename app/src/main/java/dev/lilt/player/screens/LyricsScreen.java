@@ -68,6 +68,8 @@ public final class LyricsScreen extends Screen {
     private ImageView prev, play, next;
     private View progressFill;
     private GlassView capsule;
+    /** Wide-and-short window (landscape phone): the capsule sits beside the transport instead of below it. */
+    private boolean compact;
 
     private Track shown;
     private String shownId = "";
@@ -197,7 +199,12 @@ public final class LyricsScreen extends Screen {
         capsule = PlayerCapsule.build(c, host, roles, backdrop, PlayerCapsule.LYRICS);
         LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(Ui.dp(c, PlayerCapsule.WIDTH_DP), Ui.dp(c, PlayerCapsule.HEIGHT_DP));
         cp.topMargin = Ui.dp(c, 8);
-        bottom.addView(capsule, cp);
+        compact = c.getResources().getConfiguration().screenHeightDp < 480 && c.getResources().getConfiguration().screenWidthDp >= 600;
+        if (compact) {
+            FrameLayout.LayoutParams fp = new FrameLayout.LayoutParams(cp.width, cp.height, Gravity.BOTTOM | Gravity.END);
+            fp.setMarginEnd(Ui.dp(c, 24));
+            root.addView(capsule, fp);
+        } else bottom.addView(capsule, cp);
         root.addView(bottom, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
         applyInsets();
         return root;
@@ -228,13 +235,18 @@ public final class LyricsScreen extends Screen {
         hp.setMarginStart(Ui.dp(context, 24));
         hp.setMarginEnd(Ui.dp(context, 24) - (heart.size() - Ui.dp(context, 36)) / 2);
         header.setLayoutParams(hp);
+        if (compact) {
+            FrameLayout.LayoutParams kp = (FrameLayout.LayoutParams) capsule.getLayoutParams();
+            kp.bottomMargin = insetBottom + Ui.dp(context, 12);
+            capsule.setLayoutParams(kp);
+        }
         FrameLayout.LayoutParams bp = (FrameLayout.LayoutParams) bottom.getLayoutParams();
         bp.bottomMargin = insetBottom + Ui.dp(context, 12);
         bottom.setLayoutParams(bp);
         FrameLayout.LayoutParams sp = (FrameLayout.LayoutParams) scroll.getLayoutParams();
         sp.topMargin = insetTop + Ui.dp(context, 12 + 48 + 8);
         // progress 7 + transport 52 + capsule 8 + 52 + bottom margin 12 + breathing room
-        sp.bottomMargin = insetBottom + Ui.dp(context, 7 + 52 + 8 + 52 + 12 + 8);
+        sp.bottomMargin = insetBottom + Ui.dp(context, compact ? 7 + 52 + 12 + 8 : 7 + 52 + 8 + 52 + 12 + 8);
         scroll.setLayoutParams(sp);
     }
 

@@ -25,6 +25,10 @@ public final class NowPlayingGeometry {
     public static final int SCRUB_TOUCH_PAD = 8;
     /** Visible drag handle. */
     public static final int HANDLE_W = 36, HANDLE_H = 5;
+    /** Widest the controls column gets in the two-pane layout. */
+    public static final int RIGHT_PANE_MAX = 480;
+    /** Close chevron: visible size and touch target at the top-start corner. */
+    public static final int CHEVRON = 20, CHEVRON_TARGET = 48;
 
     /** An axis-aligned rectangle in dp. */
     public static final class Box {
@@ -56,8 +60,11 @@ public final class NowPlayingGeometry {
         int m = NowPlayingLayout.MARGIN;
         int colX, colW;
         if (twoPane) {
-            colX = Math.max(l.artX + l.artSize + m, l.width / 2);
-            colW = l.width - m - colX;
+            // Right pane: the half of the window right of centre, capped at 480dp and centred in it.
+            int paneX = Math.max(l.artX + l.artSize + m, l.width / 2);
+            int paneW = l.width - m - paneX;
+            colW = Math.min(RIGHT_PANE_MAX, paneW);
+            colX = paneX + (paneW - colW) / 2;
             art = new Box(l.artX, l.artY, l.artSize, l.artSize);
         } else {
             colX = m;

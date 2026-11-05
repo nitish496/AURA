@@ -10,10 +10,12 @@ import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import dev.lilt.player.ui.CappedScrollView;
 import dev.lilt.player.ui.ColorRoles;
 import dev.lilt.player.ui.GlassView;
 import dev.lilt.player.ui.Motion;
 import dev.lilt.player.ui.PillButton;
+import dev.lilt.player.ui.ShelfMetrics;
 import dev.lilt.player.ui.Type;
 import dev.lilt.player.ui.TypeScale;
 import dev.lilt.player.ui.Ui;
@@ -25,6 +27,7 @@ public final class GlassDialog extends FrameLayout {
     private final View scrim;
     private final GlassView panel;
     private final LinearLayout column;
+    private final CappedScrollView scroller;
     private EditText input;
     private boolean closing, promptMode;
     private Runnable onClosed;
@@ -51,7 +54,9 @@ public final class GlassDialog extends FrameLayout {
             lp.topMargin = Ui.dp(c, 8);
             column.addView(m, lp);
         }
-        panel.addView(column, new FrameLayout.LayoutParams(-1, -2));
+        scroller = new CappedScrollView(c);
+        scroller.addView(column, new FrameLayout.LayoutParams(-1, -2));
+        panel.addView(scroller, new FrameLayout.LayoutParams(-1, -2));
         addView(panel, new LayoutParams(Ui.dp(c, 320), LayoutParams.WRAP_CONTENT, Gravity.CENTER));
         setClickable(true);
     }
@@ -120,8 +125,16 @@ public final class GlassDialog extends FrameLayout {
         host.addView(this, new ViewGroup.LayoutParams(-1, -1));
         LayoutParams lp = (LayoutParams) panel.getLayoutParams();
         int hostW = host.getWidth() > 0 ? host.getWidth() : c.getResources().getDisplayMetrics().widthPixels;
-        lp.width = Math.min(Ui.dp(c, 340), hostW - Ui.dp(c, 48));
-        if (promptMode) { lp.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL; lp.topMargin = topInset + Ui.dp(c, 72); }
+        int hostH = host.getHeight() > 0 ? host.getHeight() : c.getResources().getDisplayMetrics().heightPixels;
+        lp.width = ShelfMetrics.panelWidthPx(hostW, Ui.dp(c, 24), Ui.dp(c, 340));
+        int top = 0;
+        if (promptMode) {
+            // In short windows the keyboard needs the lower half: sit at the top, below the status bar.
+            top = hostH < Ui.dp(c, 480) ? topInset + Ui.dp(c, 8) : topInset + Ui.dp(c, 72);
+            lp.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
+            lp.topMargin = top;
+        }
+        scroller.setMaxHeight(ShelfMetrics.maxPanelHeightPx(hostH, top > 0 ? top : topInset, top > 0 ? 0 : topInset, Ui.dp(c, 16), Ui.dp(c, 120)));
         panel.setLayoutParams(lp);
         scrim.setAlpha(0f);
         panel.setAlpha(0f);

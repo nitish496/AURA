@@ -37,6 +37,12 @@ public final class MainActivity extends Activity {
         shell.save(out);
     }
 
+    /** Rotation / resize / fold: declared in the manifest's configChanges, so the shell re-lays out in place. */
+    @Override public void onConfigurationChanged(android.content.res.Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        if (shell != null) shell.onConfigurationChanged(newConfig);
+    }
+
     @Override protected void onStart() { super.onStart(); shell.onStart(); }
     @Override protected void onResume() { super.onResume(); shell.onResume(); }
     @Override protected void onPause() { shell.onPause(); super.onPause(); }

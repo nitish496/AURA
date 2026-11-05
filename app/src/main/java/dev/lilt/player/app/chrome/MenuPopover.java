@@ -10,10 +10,12 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import dev.lilt.player.app.MenuAction;
+import dev.lilt.player.ui.CappedScrollView;
 import dev.lilt.player.ui.ColorRoles;
 import dev.lilt.player.ui.GlassView;
 import dev.lilt.player.ui.Haptics;
 import dev.lilt.player.ui.Motion;
+import dev.lilt.player.ui.ShelfMetrics;
 import dev.lilt.player.ui.Type;
 import dev.lilt.player.ui.TypeScale;
 import dev.lilt.player.ui.Ui;
@@ -28,6 +30,7 @@ public final class MenuPopover extends FrameLayout {
     private final ColorRoles roles;
     private final View scrim;
     private final GlassView panel;
+    private final CappedScrollView scroller;
     private boolean closing;
     private Runnable onClosed;
 
@@ -53,7 +56,9 @@ public final class MenuPopover extends FrameLayout {
             }
             column.addView(row(c, a), new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(c, 46)));
         }
-        panel.addView(column, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+        scroller = new CappedScrollView(c);
+        scroller.addView(column, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+        panel.addView(scroller, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
         addView(panel, new LayoutParams(Ui.dp(c, 264), LayoutParams.WRAP_CONTENT));
         setClickable(true);
     }
@@ -92,12 +97,13 @@ public final class MenuPopover extends FrameLayout {
         anchor.getLocationInWindow(a);
         host.getLocationInWindow(h);
         int ax = a[0] - h[0], ay = a[1] - h[1], aw = anchor.getWidth(), ah = anchor.getHeight();
-        int width = Ui.dp(c, 264);
+        int width = Math.min(Ui.dp(c, 264), host.getWidth() > 0 ? host.getWidth() - Ui.dp(c, 32) : Ui.dp(c, 264));
         int hostW = host.getWidth() > 0 ? host.getWidth() : c.getResources().getDisplayMetrics().widthPixels;
         int hostH = host.getHeight() > 0 ? host.getHeight() : c.getResources().getDisplayMetrics().heightPixels;
+        int margin = Ui.dp(c, 16), gap = Ui.dp(c, 6);
+        scroller.setMaxHeight(ShelfMetrics.maxPanelHeightPx(hostH, topInset, bottomInset, margin, Ui.dp(c, 96)));
         panel.measure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
         int height = panel.getMeasuredHeight();
-        int margin = Ui.dp(c, 16), gap = Ui.dp(c, 6);
         boolean alignRight = ax + aw / 2 > hostW / 2;
         int x = alignRight ? ax + aw - width : ax;
         x = Math.max(margin, Math.min(hostW - margin - width, x));
