@@ -216,18 +216,35 @@ public final class LibraryRepoImpl implements LibraryRepo {
             if (permitted) {
                 try { found = library.scan(); scanned = true; } catch (RuntimeException failure) { found = model.local; }
             }
-            if (scanned) cache.write(found); else if (!permitted) cache.clear();
-            Model built = build(found);
+            final boolean same = scanned && sameTracks(found, model.local);
+            if (scanned && !same) cache.write(found); else if (!permitted) cache.clear();
+            final Model built = same ? null : build(found);
             main.post(() -> {
                 scanDone = true;
                 if (destroyed || generation != scanGeneration) return;
-                model = built;
-                loaded = true;
-                loading = false;
-                notifyChanged();
+                if (built != null || !loaded) {
+                    model = built != null ? built : build(model.local);
+                    loaded = true;
+                    loading = false;
+                    notifyChanged();
+                } else {
+                    loading = false; // nothing changed: keep the model, no screen rebuilds
+                }
                 if (scanQueued || dirty) main.postDelayed(rescanIfDirty, 600);
             });
         });
+    }
+
+    /** Same songs (id, title, length, date added) in the same order. */
+    private static boolean sameTracks(List<Track> a, List<Track> b) {
+        if (a.size() != b.size() || a.isEmpty()) return false;
+        for (int i = 0; i < a.size(); i++) {
+            Track x = a.get(i), y = b.get(i);
+            if (!x.id.equals(y.id) || x.duration != y.duration || x.dateAdded != y.dateAdded
+                    || !java.util.Objects.equals(x.title, y.title) || !java.util.Objects.equals(x.artist, y.artist)
+                    || !java.util.Objects.equals(x.album, y.album)) return false;
+        }
+        return true;
     }
 
     private Model build(List<Track> local) {

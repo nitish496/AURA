@@ -52,6 +52,7 @@ public final class HomeScreen extends ListScreen {
     private List<Track> trending = new ArrayList<>();
     private boolean mixesLoading, trendingLoading, trendingTried;
     private boolean destroyed;
+    private long lastMixesAt, lastTrendingTry;
 
     public HomeScreen() {}
 
@@ -73,8 +74,8 @@ public final class HomeScreen extends ListScreen {
 
     private void applyHeaderInsets() {
         if (header == null) return;
-        int top = insetTop + Ui.dp(context, 8);
-        header.setPadding(Ui.dp(context, 16), top, Ui.dp(context, 16), 0);
+        int top = Math.max(0, insetTop - Ui.dp(context, dev.lilt.player.DesignTokens.TOP_BAR)) + Ui.dp(context, 6);
+        header.setPadding(Ui.dp(context, 16), top, Ui.dp(context, 64), 0);
         titleBottomPx = top + Ui.dp(context, 40);
     }
 
@@ -90,6 +91,9 @@ public final class HomeScreen extends ListScreen {
 
     private void loadMixes() {
         if (mixesLoading || context == null) return;
+        long nowMs = android.os.SystemClock.elapsedRealtime();
+        if (!mixes.isEmpty() && nowMs - lastMixesAt < 30_000) return;
+        lastMixesAt = nowMs;
         mixesLoading = true;
         final long now = System.currentTimeMillis();
         host.io().execute(() -> {
@@ -148,6 +152,9 @@ public final class HomeScreen extends ListScreen {
 
     private void loadTrending() {
         if (trendingTried || trendingLoading || context == null || !SettingsScreen.showCatalogue(context)) return;
+        long t = android.os.SystemClock.elapsedRealtime();
+        if (lastTrendingTry != 0 && t - lastTrendingTry < 60_000) return;
+        lastTrendingTry = t;
         trendingLoading = true;
         host.io().execute(() -> {
             List<Track> found = null;

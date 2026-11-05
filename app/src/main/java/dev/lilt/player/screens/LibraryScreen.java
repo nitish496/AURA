@@ -51,8 +51,8 @@ public final class LibraryScreen extends ListScreen {
 
     private void applyHeaderInsets() {
         if (header == null) return;
-        int top = insetTop + Ui.dp(context, 8);
-        header.setPadding(Ui.dp(context, 16), top, Ui.dp(context, 16), Ui.dp(context, 8));
+        int top = Math.max(0, insetTop - Ui.dp(context, dev.lilt.player.DesignTokens.TOP_BAR)) + Ui.dp(context, 6);
+        header.setPadding(Ui.dp(context, 16), top, Ui.dp(context, 64), Ui.dp(context, 8));
         titleBottomPx = top + Ui.dp(context, 40);
     }
 

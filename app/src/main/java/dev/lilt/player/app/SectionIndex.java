@@ -52,10 +52,12 @@ public final class SectionIndex {
         return '#';
     }
 
+    private static final java.util.regex.Pattern MARKS = java.util.regex.Pattern.compile("\\p{M}+");
+
     /** Sort key: letter sections first (accent- and case-insensitive), "#" titles last. */
     public static String sortKey(String title) {
         String t = title == null ? "" : title.trim();
-        String folded = Normalizer.normalize(t, Normalizer.Form.NFD).replaceAll("\\p{M}+", "").toLowerCase(Locale.ROOT);
+        String folded = MARKS.matcher(Normalizer.normalize(t, Normalizer.Form.NFD)).replaceAll("").toLowerCase(Locale.ROOT);
         return (section(t) == OTHER ? "\u0001" : "\u0000") + folded;
     }
 

@@ -66,7 +66,7 @@ public final class ArtistScreen extends ListScreen {
     }
 
     @Override protected View buildHeader() {
-        heroHeight = Ui.dp(context, 320);
+        heroHeight = Ui.dp(context, Math.min(320, Math.max(200, Math.round(context.getResources().getConfiguration().screenHeightDp * 0.5f))));
         hero = new FrameLayout(context);
         hero.setBackgroundColor(roles.dark ? 0xFF1C1C1F : 0xFF2A2A2D);
         initials = Type.text(context, TypeScale.STAT, 0x14FFFFFF);

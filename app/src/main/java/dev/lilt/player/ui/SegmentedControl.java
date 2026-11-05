@@ -47,6 +47,7 @@ public class SegmentedControl extends FrameLayout {
             t.setOnClickListener(v -> { if (index != selected) { Haptics.tick(v); select(index, true); if (listener != null) listener.onSelected(index); } });
             labels.addView(t, new LinearLayout.LayoutParams(0, LayoutParams.MATCH_PARENT, 1));
         }
+        labels.setElevation(Ui.dpf(c, 2)); // labels must draw above the elevated thumb
         track.addView(labels, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
         addView(track, new LayoutParams(LayoutParams.MATCH_PARENT, Ui.dp(c, DesignTokens.SEGMENTED_HEIGHT), Gravity.CENTER_VERTICAL));
         select(0, false);

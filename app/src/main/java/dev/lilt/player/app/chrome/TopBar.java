@@ -40,7 +40,7 @@ public final class TopBar extends FrameLayout {
         bar.setRimVisible(false);
         bar.setBottomHairline(roles.separator);
         bar.setElevation(0);
-        bar.setBackdrop(backdrop);
+        bar.setBlurAllowed(false);
         bar.setAlpha(0f);
         addView(bar);
         title = Type.text(c, TypeScale.HEADLINE, roles.textPrimary);
@@ -66,7 +66,7 @@ public final class TopBar extends FrameLayout {
 
     private GlassButton button(int icon, String description, Runnable action) {
         GlassButton b = new GlassButton(getContext(), roles, icon, description, DesignTokens.GLASS_BUTTON);
-        b.setBackdrop(backdrop);
+        b.setBlurAllowed(false); // tiny glass: dense tint + rim (blur path drew nothing over the list)
         b.setOnArtwork(onArtwork);
         b.setOnClickListener(v -> action.run());
         addView(b, new LayoutParams(b.size(), b.size()));

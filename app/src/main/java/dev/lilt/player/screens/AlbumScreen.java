@@ -67,7 +67,8 @@ public final class AlbumScreen extends ListScreen {
 
     @Override protected View buildHeader() {
         int width = Ui.dp(context, host.contentWidthDp());
-        heroSize = width;
+        int maxHero = Ui.dp(context, Math.round(context.getResources().getConfiguration().screenHeightDp * 0.55f));
+        heroSize = Math.min(width, Math.max(Ui.dp(context, 200), maxHero));
         LinearLayout column = Ui.column(context);
         hero = new FrameLayout(context);
         heroImage = new ImageView(context);
