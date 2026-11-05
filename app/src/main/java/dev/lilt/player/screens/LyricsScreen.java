@@ -325,6 +325,7 @@ public final class LyricsScreen extends Screen {
 
     private void updateHeart() {
         boolean fav = shown != null && host.library().isFavourite(shown.id);
+        heart.setIconColor(fav ? host.colors().accent : ON_PRIMARY);
         heart.setIcon(fav ? R.drawable.ic_heart_fill : R.drawable.ic_heart);
         heart.setContentDescription(fav ? "Remove from favourites" : "Add to favourites");
         heart.setEnabled(shown != null);
