@@ -1,0 +1,22 @@
+# Screens captured by scripts/ci/screenshots.sh on the CI emulator.
+# Format: name|am-start extras|seconds to wait before capture
+# Extras are honoured only by debuggable builds (see MainActivity debug hooks).
+# Warm-up rows (name starting with "_") are executed but not captured.
+_warm1|--es aura.play 'Night Bus Home'|3
+_warm2|--es aura.play 'Kinetic'|3
+_warm3|--es aura.play 'Low Tide'|3
+_warm4|--es aura.play 'Slow Bloom'|3
+_warm5|--es aura.play 'Paper Moons' --es aura.screen home|4
+01-home|--es aura.screen home|8
+02-browse|--es aura.screen browse|12
+03-search|--es aura.screen search --es aura.query 'moon'|10
+04-library|--es aura.screen library|5
+05-album|--es aura.screen album --es aura.album 'Paper Moons'|5
+06-artist|--es aura.screen artist --es aura.artist 'Juno Park'|8
+07-now-playing|--es aura.screen nowplaying|6
+08-lyrics|--es aura.screen lyrics --el aura.seek 36000|6
+09-queue|--es aura.screen queue|4
+10-equalizer|--es aura.screen equalizer|4
+11-replay|--es aura.screen stats|4
+12-home-light|--es aura.screen home --es aura.theme light|8
+13-now-playing-light|--es aura.screen nowplaying --es aura.theme light|6
