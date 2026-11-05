@@ -59,6 +59,7 @@ public final class EdgeToEdge {
     @SuppressWarnings("deprecation")
     public static void setBarIcons(Window w, boolean lightBackground) {
         if (Build.VERSION.SDK_INT >= 30) {
+            w.getDecorView(); // installs the decor so the controller exists before setContentView
             WindowInsetsController c = w.getInsetsController();
             if (c == null) return;
             int mask = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;
