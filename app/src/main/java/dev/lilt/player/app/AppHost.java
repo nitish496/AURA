@@ -28,7 +28,7 @@ public interface AppHost {
 
     /** Glass context menu for a track (play next, add to queue, save/like, playlist, album, artist, share). */
     void showTrackMenu(Track track, View anchor);
-    /** As {@link #showTrackMenu(Track, View)} with extra rows (e.g. "Remove from Playlist") added at the top. */
+    /** As {@link #showTrackMenu(Track, View)} with extra rows (e.g. "Remove from Playlist") appended as a last group. */
     void showTrackMenu(Track track, View anchor, List<MenuAction> extra);
     /** Generic glass popover anchored to a view. */
     void showMenu(View anchor, List<MenuAction> actions);

@@ -348,7 +348,7 @@ public final class EmbeddedLyrics {
     /** Trims stray NULs/BOMs, normalises line endings. */
     static String clean(String text) {
         if (text == null) return "";
-        String value = text.replace("\u0000", "").replace("﻿", "").replace("\r\n", "\n").replace('\r', '\n');
+        String value = text.replace("\u0000", "").replace("\uFEFF", "").replace("\r\n", "\n").replace('\r', '\n');
         return value.trim();
     }
 

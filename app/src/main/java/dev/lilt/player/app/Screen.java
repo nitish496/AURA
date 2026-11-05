@@ -78,6 +78,9 @@ public abstract class Screen {
      */
     public void onSearchQuery(String query, boolean submitted) {}
 
+    /** The tab was selected again while this screen is the root of its stack: scroll to the top. */
+    public void scrollToTop() {}
+
     public Bundle saveState() { return Bundle.EMPTY; }
 
     public void restoreState(Bundle state) {}

@@ -156,7 +156,7 @@ public final class LrcParser {
 
     private static String[] lines(String text) {
         String normalized = text;
-        if (!normalized.isEmpty() && normalized.charAt(0) == '﻿') normalized = normalized.substring(1);
+        if (!normalized.isEmpty() && normalized.charAt(0) == '\uFEFF') normalized = normalized.substring(1);
         return normalized.replace("\r\n", "\n").replace('\r', '\n').split("\n", -1);
     }
 }
