@@ -44,10 +44,11 @@ sleep 8
 
 while IFS='|' read -r name extras wait; do
   [[ -z "$name" || "$name" == \#* ]] && continue
-  adb shell "am start -W --activity-single-top -n $ACT $extras" >/dev/null 2>&1 || log "am start failed for $name"
+  # </dev/null: adb would otherwise consume the rest of screens.txt from the loop's stdin.
+  adb shell "am start -W --activity-single-top -n $ACT $extras" </dev/null >/dev/null 2>&1 || log "am start failed for $name"
   sleep "${wait:-5}"
   if [[ "$name" != _* ]]; then
-    adb exec-out screencap -p > "$OUT/raw/$name.png" && log "captured $name"
+    adb exec-out screencap -p </dev/null > "$OUT/raw/$name.png" && log "captured $name"
   fi
 done < "$(dirname "$0")/screens.txt"
 
