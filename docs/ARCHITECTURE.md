@@ -25,9 +25,9 @@ DefaultDataSource ── content://, file://, asset ─────────�
                                  StandaloneDatabaseProvider index
 ```
 
-- One `SimpleCache` per process (a second instance on the folder would throw). Cache key: the
-  MediaItem's custom cache key (`Track.item()` sets `"audius:<id>"`), otherwise
-  `CacheKeys.forUri()` (Audius `/v1/tracks/<id>/stream` URLs map to the track id). Keys therefore
+- One `SimpleCache` per process (a second instance on the folder would throw). Cache key:
+  `CacheKeys.forUri()` maps Audius `/v1/tracks/<id>/stream` URLs to `audius-stream:<id>`
+  (any other URI keys on itself; a MediaItem custom cache key, if ever set, wins). Keys therefore
   survive host failover and streamed songs replay offline. `FLAG_IGNORE_CACHE_ON_ERROR`: a damaged
   cache falls back to the network instead of failing playback.
 - Buffering: start after 1.5 s, refill to 30 s, at most 120 s ahead (also bounded by Media3's
@@ -128,7 +128,8 @@ peak so nothing clips. Gains change at song transitions and follow crossfades.
 
 ### Crossfade (`CrossfadeEngine`)
 
-The next song is prepared on the spare player 3 s (device) or 10 s (stream) before the fade
+The spare player is only created while crossfade is on (it is released when set to 0).
+Ramps use equal-power curves (sin/cos), updated every 25 ms while fading. The next song is prepared on the spare player 3 s (device) or 10 s (stream) before the fade
 window. The ramp starts only after the spare is buffered and actually playing; otherwise (not
 ready within 6 s / 12 s, a stall, an error, a queue edit) the overlap is cancelled and the main
 player does its normal gapless transition. The spare copies the queue, the shuffled play order,
@@ -170,6 +171,15 @@ plays, run on a worker thread and never interrupt a queue the user changed meanw
 
 - Foreground service type `mediaPlayback`; Media3 manages the notification. Android 13+ media
   notifications are exempt from `POST_NOTIFICATIONS` (declared so the UI may still request it).
+- Queue storage: `files/queue.bin` (AtomicFile, rewritten only when the queue changes; queues over
+  2000 items keep a 2000-item window around the current song) plus a tiny `state` string in the
+  `playback` prefs (index, position, shuffle, repeat) for the 5 s checkpoint. The pre-2.0 prefs copy
+  is migrated and removed.
+- No `MediaButtonReceiver` is declared: in Media3 1.5.1 a receiver-started service that ends up with
+  nothing to play crashes (`ForegroundServiceDidNotStartInTimeException`). Resumption works for
+  connected controllers via `onPlaybackResumption`.
+- `DolbySettings.find()` checks the Dolby action and known Dolby packages before a name-only
+  launcher scan; still call it off the main thread.
 - Removing AURA from Recents stops playback (the owner's preference; `stopOnTaskRemoved = false`
   keeps playing in the foreground). A paused service always stops.
 - Notification artwork: `LocalBitmapLoader` decodes device art via `Artwork` and fetches https
