@@ -9,11 +9,23 @@ public final class SearchIndex {
     // Compiled once: normalize() runs for every field at index time and on every keystroke.
     private static final Pattern NON_WORD=Pattern.compile("[^\\p{L}\\p{N}\\p{M}]+");
     private static final Pattern SPACES=Pattern.compile("\\s+");
-    private final List<Entry> entries;
-    public SearchIndex(List<String[]> metadata) {
-        List<Entry> built=new ArrayList<>();
-        for(String[] row:metadata) built.add(new Entry(row[0],row[1],row[2],row[3]));
-        entries=Collections.unmodifiableList(built);
+    private final List<String[]> metadata;
+    private volatile List<Entry> entries;
+    /** Construction is O(1): the NFKD/regex normalisation runs on first search (or {@link #warm()}). */
+    public SearchIndex(List<String[]> metadata) { this.metadata=metadata; }
+    /** Builds the normalised entries now (idempotent, thread-safe); call off the main thread. */
+    public void warm() { entries(); }
+    private List<Entry> entries() {
+        List<Entry> built=entries;
+        if(built!=null)return built;
+        synchronized(this){
+            if(entries==null){
+                List<Entry> list=new ArrayList<>(metadata.size());
+                for(String[] row:metadata) list.add(new Entry(row[0],row[1],row[2],row[3]));
+                entries=Collections.unmodifiableList(list);
+            }
+            return entries;
+        }
     }
     public static String normalize(String value) {
         if(value==null)return "";
@@ -26,7 +38,7 @@ public final class SearchIndex {
         return SPACES.matcher(NON_WORD.matcher(folded.toString().toLowerCase(Locale.ROOT)).replaceAll(" ").trim()).replaceAll(" ");
     }
     public List<String> search(String query) {
-        String q=normalize(query);List<Hit> hits=new ArrayList<>();
+        String q=normalize(query);List<Hit> hits=new ArrayList<>();List<Entry> entries=entries();
         if(q.isEmpty()){List<String> ids=new ArrayList<>();for(Entry e:entries)ids.add(e.id);return ids;}
         String[] tokens=q.split(" ");
         for(Entry e:entries){int score=score(e,q,tokens);if(score<1000)hits.add(new Hit(e.id,score));}

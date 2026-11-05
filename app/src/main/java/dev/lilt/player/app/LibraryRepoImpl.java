@@ -115,6 +115,8 @@ public final class LibraryRepoImpl implements LibraryRepo {
     private boolean loaded, loading, dirty = true, visible, destroyed, scanQueued;
     private long scanGeneration;
     private boolean scanDone;
+    /** MediaStore fingerprint of the model on screen; "" when unknown (API < 30). */
+    private volatile String storeSignature = "";
     private List<Track> mostPlayed = Collections.emptyList();
     private ContentObserver observer;
     private final Runnable rescanIfDirty = () -> { if (visible && dirty && !loading) refresh(); };
@@ -197,40 +199,67 @@ public final class LibraryRepoImpl implements LibraryRepo {
         final boolean permitted = hasPermission();
         notifyChanged();
         final boolean needsCache = permitted && !loaded && model.local.isEmpty();
+        final boolean wasLoaded = loaded;
+        final List<Track> current = model.local;
         io.execute(() -> {
+            // Fingerprint first: edits made while we scan then show up as a mismatch next time.
+            final String signature = permitted ? library.storeSignature() : "";
+            List<Track> baseline = current;
+            String cachedSignature = storeSignature;
+            Model early = null;
             if (needsCache) {
-                // Show the last scan straight away; the real scan below replaces it.
-                final List<Track> cached = cache.read();
-                if (!cached.isEmpty()) {
-                    final Model early = build(cached);
+                // Show the last scan straight away; the real scan below (if any) replaces it.
+                final LibraryCache.Snapshot snapshot = cache.read();
+                if (!snapshot.tracks.isEmpty()) {
+                    baseline = snapshot.tracks;
+                    cachedSignature = snapshot.signature;
+                    final Model shown = build(snapshot.tracks);
+                    early = shown;
                     main.post(() -> {
                         if (destroyed || generation != scanGeneration || scanDone) return;
-                        model = early;
+                        model = shown;
                         loaded = true;
                         notifyChanged();
                     });
                 }
             }
-            List<Track> found = new ArrayList<>();
-            boolean scanned = false;
-            if (permitted) {
-                try { found = library.scan(); scanned = true; } catch (RuntimeException failure) { found = model.local; }
+            final boolean haveBaseline = wasLoaded || early != null;
+            Model result = null; // null: keep the current model
+            if (permitted && haveBaseline && LibraryCache.unchanged(cachedSignature, signature)) {
+                result = early; // MediaStore generation unchanged: no query, no rebuild
+            } else {
+                List<Track> found = new ArrayList<>();
+                boolean scanned = false;
+                if (permitted) {
+                    try { found = library.scan(); scanned = true; } catch (RuntimeException failure) { found = baseline; }
+                }
+                final boolean same = scanned && sameTracks(found, baseline);
+                if (scanned && (!same || !signature.equals(cachedSignature))) cache.write(found, signature);
+                else if (!permitted) cache.clear();
+                if (!same) result = build(found);
+                else if (early != null) result = early;
+                else if (!wasLoaded) result = build(baseline);
             }
-            final boolean same = scanned && sameTracks(found, model.local);
-            if (scanned && !same) cache.write(found); else if (!permitted) cache.clear();
-            final Model built = same ? null : build(found);
+            final Model published = result;
+            final Model shownEarly = early;
             main.post(() -> {
                 scanDone = true;
                 if (destroyed || generation != scanGeneration) return;
-                if (built != null || !loaded) {
-                    model = built != null ? built : build(model.local);
+                storeSignature = signature;
+                if (published != null) {
+                    boolean already = published == shownEarly && loaded;
+                    model = published;
                     loaded = true;
                     loading = false;
-                    notifyChanged();
+                    if (!already) notifyChanged();
                 } else {
+                    loaded = true;
                     loading = false; // nothing changed: keep the model, no screen rebuilds
                 }
                 if (scanQueued || dirty) main.postDelayed(rescanIfDirty, 600);
+                // Normalise search fields after first paint so the first keystroke is instant.
+                final SearchIndex index = model.index;
+                io.execute(index::warm);
             });
         });
     }
@@ -452,11 +481,19 @@ public final class LibraryRepoImpl implements LibraryRepo {
         notifyChanged();
     }
 
-    private List<String> history() {
+    private String historyRaw;
+    private List<String> historyParsed = new ArrayList<>();
+
+    /** Parsed once per stored value; returns a mutable copy. */
+    private synchronized List<String> history() {
         String stored = library.prefs().getString(KEY_HISTORY, "");
-        List<String> ids = new ArrayList<>();
-        if (!stored.isEmpty()) for (String id : stored.split("\n")) if (!id.isEmpty() && !ids.contains(id)) ids.add(id);
-        return ids;
+        if (!stored.equals(historyRaw)) {
+            List<String> ids = new ArrayList<>();
+            if (!stored.isEmpty()) for (String id : stored.split("\n")) if (!id.isEmpty() && !ids.contains(id)) ids.add(id);
+            historyRaw = stored;
+            historyParsed = ids;
+        }
+        return new ArrayList<>(historyParsed);
     }
 
     @Override public List<Track> recentlyPlayed(int limit) {
