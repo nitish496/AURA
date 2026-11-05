@@ -43,6 +43,36 @@ jobs:
           name: lint-report
           path: app/build/reports/lint-results-debug.*
 
+  release:
+    # Publishes the latest green build of this branch as a downloadable pre-release.
+    needs: build
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/claude/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: release-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: aura-debug-apk
+          path: apk
+      - name: Publish pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG=aura-2.0-preview
+          cp apk/*.apk AURA-2.0-preview.apk
+          NOTES="Test build of AURA 2.0 from commit ${GITHUB_SHA::7} (branch ${GITHUB_REF_NAME}). Debug-signed. If an older AURA is installed with a different signing key, uninstall it first."
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" AURA-2.0-preview.apk --clobber --repo "$GITHUB_REPOSITORY"
+            gh release edit "$TAG" --notes "$NOTES" --prerelease --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$TAG" AURA-2.0-preview.apk --prerelease --target "$GITHUB_SHA" \
+              --title "AURA 2.0 preview" --notes "$NOTES" --repo "$GITHUB_REPOSITORY"
+          fi
+
   screenshots:
     # Boots a real Android emulator, loads a generated fictional music library,
     # opens each screen via debug-only intent extras and commits the captures to
