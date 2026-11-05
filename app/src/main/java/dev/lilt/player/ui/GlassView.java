@@ -176,13 +176,15 @@ public class GlassView extends FrameLayout {
         listening = false;
     }
 
-    @Override public void draw(Canvas canvas) {
-        if (capturing) return; // a backdrop never contains glass
-        super.draw(canvas);
-    }
-
+    /*
+     * Do NOT skip draw() while another glass records its backdrop. A hardware child's display
+     * list is rebuilt by View.draw(); recording it empty during a capture clears its dirty flag,
+     * so the real frame reuses the empty list and the view (e.g. every TopBar button, which sits
+     * inside the content the tab bar / mini player capture) never appears. Only the blur layer
+     * is skipped during a capture (no glass-in-glass recursion); the material still draws.
+     */
     @Override protected void onDraw(Canvas canvas) {
-        if (engine != null && blurActive() && canvas.isHardwareAccelerated()) engine.draw(canvas);
+        if (!capturing && engine != null && blurActive() && canvas.isHardwareAccelerated()) engine.draw(canvas);
         material.draw(canvas);
     }
 

@@ -47,6 +47,7 @@ public final class TopBar extends FrameLayout {
         Type.singleLine(title);
         title.setGravity(Gravity.CENTER);
         title.setAlpha(0f);
+        title.setVisibility(INVISIBLE);
         addView(title);
     }
 
@@ -96,6 +97,7 @@ public final class TopBar extends FrameLayout {
         bar.setAlpha(v);
         title.setAlpha(v);
         bar.setVisibility(v <= 0.001f ? INVISIBLE : VISIBLE);
+        title.setVisibility(v <= 0.001f ? INVISIBLE : VISIBLE);
     }
 
     @Override protected void onMeasure(int widthSpec, int heightSpec) {
