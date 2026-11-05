@@ -1,35 +1,105 @@
 package dev.lilt.player;
 
-import android.graphics.*;
+import android.graphics.Canvas;
+import android.graphics.ColorFilter;
+import android.graphics.Paint;
+import android.graphics.Path;
+import android.graphics.PixelFormat;
 import android.graphics.drawable.Drawable;
+import dev.lilt.player.ui.IconPaths;
+import dev.lilt.player.ui.SvgPath;
+import java.util.HashMap;
+import java.util.Map;
 
-/** Small original vector icons drawn in a 24-unit coordinate system. */
+/**
+ * Context-free icon drawable for the AURA icon family. It draws the same paths as the
+ * {@code res/drawable/ic_*} vectors (both are generated from design/src/icons.mjs), so it suits
+ * custom views and code without a Context. Unknown names draw nothing.
+ */
 public final class GlyphDrawable extends Drawable {
-    private final String name;private final int color,size;private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
-    public GlyphDrawable(String name,int color,int size){this.name=name;this.color=color;this.size=size;}
-    @Override public int getIntrinsicWidth(){return size;}@Override public int getIntrinsicHeight(){return size;}
+    private static final Map<String, Path[]> CACHE = new HashMap<>();
+
+    private final IconPaths.Glyph glyph;
+    private final Path[] paths;
+    private final int size;
+    private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+    public GlyphDrawable(String name, int color, int size) {
+        this.glyph = IconPaths.get(name);
+        this.paths = glyph == null ? new Path[0] : paths(glyph);
+        this.size = size;
+        paint.setColor(color);
+        paint.setStrokeCap(Paint.Cap.ROUND);
+        paint.setStrokeJoin(Paint.Join.ROUND);
+        paint.setStrokeWidth(IconPaths.STROKE);
+    }
+
+    private static synchronized Path[] paths(IconPaths.Glyph g) {
+        Path[] cached = CACHE.get(g.name);
+        if (cached != null) return cached;
+        Path[] out = new Path[g.layers()];
+        for (int i = 0; i < out.length; i++) {
+            Path p = toPath(SvgPath.parse(g.path(i)));
+            if (g.mode(i) == IconPaths.FILL_EVEN_ODD) p.setFillType(Path.FillType.EVEN_ODD);
+            out[i] = p;
+        }
+        CACHE.put(g.name, out);
+        return out;
+    }
+
+    private static Path toPath(SvgPath s) {
+        Path p = new Path();
+        int k = 0;
+        for (int i = 0; i < s.opCount(); i++) {
+            switch (s.op(i)) {
+                case SvgPath.MOVE: p.moveTo(s.coord(k), s.coord(k + 1)); break;
+                case SvgPath.LINE: p.lineTo(s.coord(k), s.coord(k + 1)); break;
+                case SvgPath.QUAD: p.quadTo(s.coord(k), s.coord(k + 1), s.coord(k + 2), s.coord(k + 3)); break;
+                case SvgPath.CUBIC: p.cubicTo(s.coord(k), s.coord(k + 1), s.coord(k + 2), s.coord(k + 3), s.coord(k + 4), s.coord(k + 5)); break;
+                default: p.close(); break;
+            }
+            k += SvgPath.arity(s.op(i));
+        }
+        return p;
+    }
+
+    public void setColor(int color) { paint.setColor(color); invalidateSelf(); }
+
+    @Override public int getIntrinsicWidth() { return size; }
+    @Override public int getIntrinsicHeight() { return size; }
+
     @Override public void draw(Canvas canvas) {
-        canvas.save();canvas.translate(getBounds().left,getBounds().top);canvas.scale(getBounds().width()/24f,getBounds().height()/24f);paint.setColor(color);paint.setStrokeWidth(1.8f);paint.setStrokeCap(Paint.Cap.ROUND);paint.setStrokeJoin(Paint.Join.ROUND);paint.setStyle(Paint.Style.STROKE);
-        switch(name) {
-            case "play":paint.setStyle(Paint.Style.FILL);triangle(canvas,8,5,19,12,8,19);break;
-            case "pause":paint.setStyle(Paint.Style.FILL);canvas.drawRoundRect(6,5,10,19,1,1,paint);canvas.drawRoundRect(14,5,18,19,1,1,paint);break;
-            case "next":paint.setStyle(Paint.Style.FILL);triangle(canvas,5,5,16,12,5,19);canvas.drawRect(18,5,20,19,paint);break;
-            case "previous":paint.setStyle(Paint.Style.FILL);triangle(canvas,19,5,8,12,19,19);canvas.drawRect(4,5,6,19,paint);break;
-            case "more":paint.setStyle(Paint.Style.FILL);for(int x=5;x<=19;x+=7)canvas.drawCircle(x,12,1.7f,paint);break;
-            case "down":line(canvas,5,9,12,16);line(canvas,12,16,19,9);break;
-            case "shuffle":line(canvas,4,6,7,6);line(canvas,7,6,17,18);line(canvas,17,18,21,18);line(canvas,4,18,7,18);line(canvas,7,18,17,6);line(canvas,17,6,21,6);line(canvas,18,3,21,6);line(canvas,21,6,18,9);line(canvas,18,15,21,18);line(canvas,21,18,18,21);break;
-            case "repeat":case "repeat_one":canvas.drawArc(4,5,20,19,185,150,false,paint);canvas.drawArc(4,5,20,19,5,150,false,paint);line(canvas,20,5,20,10);line(canvas,20,10,15,10);line(canvas,4,19,4,14);line(canvas,4,14,9,14);if(name.equals("repeat_one")){paint.setStyle(Paint.Style.FILL);paint.setTextSize(8);paint.setTypeface(Typeface.DEFAULT_BOLD);paint.setTextAlign(Paint.Align.CENTER);canvas.drawText("1",12,15,paint);}break;
-            case "refresh":canvas.drawArc(4,4,20,20,45,285,false,paint);line(canvas,20,4,20,10);line(canvas,20,10,14,10);break;
-            case "home":line(canvas,3,11,12,3);line(canvas,12,3,21,11);line(canvas,5,9,5,21);line(canvas,5,21,19,21);line(canvas,19,21,19,9);line(canvas,10,21,10,15);line(canvas,10,15,14,15);line(canvas,14,15,14,21);break;
-            case "library":canvas.drawRoundRect(4,5,9,19,1,1,paint);canvas.drawRoundRect(12,5,17,19,1,1,paint);line(canvas,19,6,21,18);break;
-            case "search":canvas.drawCircle(10,10,6,paint);line(canvas,15,15,21,21);break;
-            case "playlists":line(canvas,4,6,19,6);line(canvas,4,11,14,11);line(canvas,4,16,12,16);line(canvas,18,11,18,19);paint.setStyle(Paint.Style.FILL);canvas.drawOval(14,17,19,21,paint);break;
-            default:canvas.drawCircle(12,12,7,paint);
+        if (glyph == null) return;
+        canvas.save();
+        canvas.translate(getBounds().left, getBounds().top);
+        canvas.scale(getBounds().width() / 24f, getBounds().height() / 24f);
+        for (int i = 0; i < paths.length; i++) {
+            int mode = glyph.mode(i);
+            if (mode != IconPaths.STROKE_ONLY) { paint.setStyle(Paint.Style.FILL); canvas.drawPath(paths[i], paint); }
+            if (mode == IconPaths.STROKE_ONLY || mode == IconPaths.FILL_AND_STROKE) { paint.setStyle(Paint.Style.STROKE); canvas.drawPath(paths[i], paint); }
         }
         canvas.restore();
     }
-    private void triangle(Canvas c,float a,float b,float d,float e,float f,float g){Path p=new Path();p.moveTo(a,b);p.lineTo(d,e);p.lineTo(f,g);p.close();c.drawPath(p,paint);}
-    private void line(Canvas c,float a,float b,float d,float e){c.drawLine(a,b,d,e,paint);}
-    @Override public void setAlpha(int alpha){paint.setAlpha(alpha);}@Override public void setColorFilter(ColorFilter filter){paint.setColorFilter(filter);}@Override public int getOpacity(){return PixelFormat.TRANSLUCENT;}
-    public static String name(String text){switch(text){case "▶":return "play";case "Ⅱ":return "pause";case "›":case "▶▶":return "next";case "◀◀":return "previous";case "•••":return "more";case "⌄":return "down";case "↻":return "refresh";case "shuffle":return "shuffle";case "repeat":return "repeat";case "repeat_one":return "repeat_one";default:return null;}}
+
+    @Override public void setAlpha(int alpha) { paint.setAlpha(alpha); invalidateSelf(); }
+    @Override public void setColorFilter(ColorFilter filter) { paint.setColorFilter(filter); invalidateSelf(); }
+    @SuppressWarnings("deprecation")
+    @Override public int getOpacity() { return PixelFormat.TRANSLUCENT; }
+
+    /** Maps the 1.x text glyphs to icon names (null when the text is not an icon). */
+    public static String name(String text) {
+        switch (text) {
+            case "▶": return "play";
+            case "Ⅱ": return "pause";
+            case "›": case "▶▶": return "next";
+            case "◀◀": return "previous";
+            case "•••": return "more";
+            case "⌄": return "down";
+            case "↻": return "refresh";
+            case "shuffle": return "shuffle";
+            case "repeat": return "repeat";
+            case "repeat_one": return "repeat_one";
+            default: return null;
+        }
+    }
 }
