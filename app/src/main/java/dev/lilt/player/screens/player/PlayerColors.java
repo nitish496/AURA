@@ -2,7 +2,10 @@ package dev.lilt.player.screens.player;
 
 import android.graphics.Bitmap;
 import android.os.Handler;
+import android.net.Uri;
 import dev.lilt.player.ArtworkTheme;
+import dev.lilt.player.Track;
+import dev.lilt.player.app.AppHost;
 import dev.lilt.player.ui.ArtworkPalette;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -62,5 +65,20 @@ public final class PlayerColors {
         } catch (RejectedExecutionException shutDown) {
             callback.onPalette(ArtworkPalette.NEUTRAL);
         }
+    }
+
+    /**
+     * Palette for {@code track}: the cached one at once (callback runs synchronously), otherwise
+     * decoded from its artwork and delivered later on the main thread. Songs without artwork get
+     * graphite.
+     */
+    public static void load(AppHost host, Track track, Callback callback) {
+        if (track == null) { callback.onPalette(ArtworkPalette.NEUTRAL); return; }
+        ArtworkPalette hit = cached(track.id);
+        if (hit != null) { callback.onPalette(hit); return; }
+        final String id = track.id;
+        Uri media = track.isRemote() ? (track.artworkUrl == null ? null : Uri.parse(track.artworkUrl)) : track.uri;
+        if (media == null) { put(id, ArtworkPalette.NEUTRAL); callback.onPalette(ArtworkPalette.NEUTRAL); return; }
+        host.artwork().loadActual(media, null, bitmap -> sample(id, bitmap, host.io(), host.main(), callback));
     }
 }

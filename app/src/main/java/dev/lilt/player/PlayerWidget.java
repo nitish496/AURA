@@ -57,27 +57,27 @@ public class PlayerWidget extends AppWidgetProvider {
         Bitmap result=Bitmap.createBitmap(180,180,Bitmap.Config.ARGB_8888);
         Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG|Paint.FILTER_BITMAP_FLAG);
         paint.setShader(new BitmapShader(scaled,Shader.TileMode.CLAMP,Shader.TileMode.CLAMP));
-        new Canvas(result).drawRoundRect(0,0,180,180,14,14,paint);
+        new Canvas(result).drawRoundRect(0,0,180,180,38,38,paint);
         return result;
     }
     private static Bitmap backdrop(Bitmap cover){
         if(cover==backdropCover && backdropBitmap!=null)return backdropBitmap;
         Bitmap sample=Bitmap.createScaledBitmap(cover,24,24,true);
         int[] pixels=new int[24*24];sample.getPixels(pixels,0,24,0,0,24,24);
-        int colour=ArtworkTheme.playerColor(pixels);
-        Bitmap bg=Bitmap.createBitmap(720,144,Bitmap.Config.ARGB_8888);Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);paint.setColor(colour);new Canvas(bg).drawRoundRect(0,0,720,144,28,28,paint);backdropCover=cover;backdropBitmap=bg;return bg;
+        int colour=ArtworkTheme.palette(pixels).background;
+        Bitmap bg=Bitmap.createBitmap(720,144,Bitmap.Config.ARGB_8888);Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);paint.setColor(colour);new Canvas(bg).drawRoundRect(0,0,720,144,44,44,paint);backdropCover=cover;backdropBitmap=bg;return bg;
     }
     private static Bitmap deckBackdrop(Bitmap cover){
         if(cover==deckBackdropCover&&deckBackdropBitmap!=null)return deckBackdropBitmap;
         Bitmap sample=Bitmap.createScaledBitmap(cover,24,24,true);int[] pixels=new int[576];sample.getPixels(pixels,0,24,0,0,24,24);
-        Bitmap bg=Bitmap.createBitmap(720,336,Bitmap.Config.ARGB_8888);Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);paint.setColor(ArtworkTheme.playerColor(pixels));
-        new Canvas(bg).drawRoundRect(0,0,720,336,48,48,paint);deckBackdropCover=cover;deckBackdropBitmap=bg;return bg;
+        Bitmap bg=Bitmap.createBitmap(720,336,Bitmap.Config.ARGB_8888);Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);paint.setColor(ArtworkTheme.palette(pixels).background);
+        new Canvas(bg).drawRoundRect(0,0,720,336,60,60,paint);deckBackdropCover=cover;deckBackdropBitmap=bg;return bg;
     }
     public static android.content.SharedPreferences prefs(Context c){return c.getSharedPreferences("widgets",Context.MODE_PRIVATE);}
     public static void publish(Context c,Player player){
         CharSequence title=player.getMediaMetadata().title,artist=player.getMediaMetadata().artist;
-        String titleText=title==null?"Choose a song":title.toString();
-        String artistText=artist==null?"Open AURA":artist.toString();
+        String titleText=title==null?"Nothing playing":title.toString();
+        String artistText=artist==null?"Tap play to resume":artist.toString();
         boolean playing=player.getPlayWhenReady()&&player.getPlaybackState()!=Player.STATE_ENDED;
         boolean hasQueue=player.getMediaItemCount()>0;
         MediaItem item=player.getCurrentMediaItem();
@@ -99,25 +99,30 @@ public class PlayerWidget extends AppWidgetProvider {
         boolean deck=info!=null&&info.provider.getClassName().endsWith("DeckPlayerWidget");
         RemoteViews v=new RemoteViews(c.getPackageName(),deck?R.layout.widget_deck:large?R.layout.widget_large:R.layout.widget_compact);
         int backgroundView=large||deck?R.id.widget_root:R.id.widget_panel;
-        int theme=prefs(c).getInt("theme:"+id,3);int ink=theme==1?0xff151719:theme==2?0xff271c00:0xfff3f4f5;
-        v.setInt(backgroundView,"setBackgroundResource",theme==1?R.drawable.widget_light:theme==2?R.drawable.widget_gold:R.drawable.widget_dark);
+        int theme=prefs(c).getInt("theme:"+id,3);
+        // 0 Dark graphite, 1 Light, 2 Ember (graphite with an Ember play button), 3 Artwork (default).
+        boolean lightTheme=theme==1;int ink=lightTheme?0xff0b0b0c:0xfff5f5f7,inkSecondary=lightTheme?0xff545459:0xffa1a1a8,controlTint=ink;
+        v.setInt(backgroundView,"setBackgroundResource",lightTheme?R.drawable.widget_light:R.drawable.widget_dark);
         Bitmap cover=bitmapKey.equals(requestedArt)?widgetArt:null;
         boolean hasArt=cover!=null;
-        if(!hasArt){ink=Color.WHITE;v.setInt(backgroundView,"setBackgroundResource",R.drawable.widget_black);}
+        if(!hasArt&&theme==3){ink=0xfff5f5f7;inkSecondary=0xffa1a1a8;controlTint=ink;v.setInt(backgroundView,"setBackgroundResource",R.drawable.widget_black);}
         v.setImageViewBitmap(R.id.widget_cover,cover);
         v.setImageViewBitmap(R.id.widget_background,hasArt&&theme==3?(deck?deckBackdrop(cover):backdrop(cover)):null);
         if(theme==3&&hasArt)v.setInt(backgroundView,"setBackgroundResource",android.R.color.transparent);
-        v.setTextViewText(R.id.widget_title,prefs(c).getString("title","Choose a song"));v.setTextViewText(R.id.widget_artist,prefs(c).getString("artist","Open AURA"));
-        for(int view:new int[]{R.id.widget_title,R.id.widget_artist,R.id.widget_previous,R.id.widget_play,R.id.widget_next,R.id.widget_settings})v.setTextColor(view,ink);
-        v.setTextViewText(R.id.widget_play,prefs(c).getBoolean("playing",false)?"Ⅱ":"▶");v.setContentDescription(R.id.widget_play,prefs(c).getBoolean("playing",false)?"Pause music":"Play music");
+        v.setTextViewText(R.id.widget_title,prefs(c).getString("title","Nothing playing"));v.setTextViewText(R.id.widget_artist,prefs(c).getString("artist","Open AURA to choose music"));
+        if(theme==3&&hasArt)inkSecondary=0xb8f5f5f7;
+        v.setTextColor(R.id.widget_title,ink);v.setTextColor(R.id.widget_artist,inkSecondary);
+        boolean isPlaying=prefs(c).getBoolean("playing",false);
+        v.setImageViewResource(R.id.widget_play,isPlaying?R.drawable.ic_pause:R.drawable.ic_play);
+        v.setImageViewResource(R.id.widget_previous,R.drawable.ic_previous);v.setImageViewResource(R.id.widget_next,R.drawable.ic_next);v.setImageViewResource(R.id.widget_settings,R.drawable.ic_settings);
+        for(int view:new int[]{R.id.widget_previous,R.id.widget_next})v.setInt(view,"setColorFilter",controlTint);
+        v.setInt(R.id.widget_settings,"setColorFilter",inkSecondary);
+        v.setInt(R.id.widget_play,"setColorFilter",theme==2?0xffff6a3d:controlTint);
+        v.setContentDescription(R.id.widget_play,isPlaying?"Pause music":"Play music");
         Intent open=new Intent(c,MainActivity.class);v.setOnClickPendingIntent(R.id.widget_title,PendingIntent.getActivity(c,id,open,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE));
         Intent config=new Intent(c,WidgetSettings.class).putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID,id);v.setOnClickPendingIntent(R.id.widget_settings,PendingIntent.getActivity(c,id+10000,config,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE));
         for(int i=0;i<3;i++){int view=new int[]{R.id.widget_previous,R.id.widget_play,R.id.widget_next}[i];Intent action=new Intent(c,PlayerWidget.class).setAction(ACTION).putExtra("control",i);PendingIntent control=PendingIntent.getBroadcast(c,i,action,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);v.setOnClickPendingIntent(view,control);if(deck&&i==1){v.setOnClickPendingIntent(R.id.widget_cover,control);v.setContentDescription(R.id.widget_cover,prefs(c).getBoolean("playing",false)?"Album cover, pause music":"Album cover, play music");}}
-        if(!prefs(c).getBoolean("has_queue",false)){
-            v.setOnClickPendingIntent(R.id.widget_play,PendingIntent.getActivity(c,id,open,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE));
-            v.setContentDescription(R.id.widget_play,"Open AURA to choose music");
-            if(deck){v.setOnClickPendingIntent(R.id.widget_cover,PendingIntent.getActivity(c,id,open,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE));v.setContentDescription(R.id.widget_cover,"Open AURA to choose music");}
-        }
+        // Play/pause always goes through the broadcast: with an empty queue play() resumes the saved queue.
         m.updateAppWidget(id,v);
     }
     @Override public void onUpdate(Context c,AppWidgetManager m,int[] ids){
@@ -157,8 +162,13 @@ public class PlayerWidget extends AppWidgetProvider {
                 };
                 player.addListener(listener);
                 if(player.getMediaItemCount()==0){
-                    // Android may prohibit opening an Activity from a broadcast. The title is
-                    // a direct Activity PendingIntent and remains the reliable way to choose music.
+                    // Nothing loaded (app was closed): play() makes the service resume the saved queue.
+                    // Previous/Next have nothing to act on. The title remains the way to open AURA.
+                    if(action==1){
+                        player.play();
+                        handler.postDelayed(()->{if(!finished.get())publish(context,player);handler.removeCallbacks(timeout);finish.run();},1500);
+                        return;
+                    }
                     publish(context,player);
                     handler.removeCallbacks(timeout);
                     finish.run();

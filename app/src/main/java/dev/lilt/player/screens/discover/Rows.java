@@ -16,8 +16,8 @@ import java.util.List;
  */
 public final class Rows extends BaseAdapter {
     public static final int STATIC = AdapterView.ITEM_VIEW_TYPE_IGNORE;
-    public static final int SONG = 0, HEADER = 1, GENRES = 2, ARTIST = 3, PLAYLIST = 4, RECENT = 5, SKELETON_ROW = 6;
-    private static final int TYPES = 7;
+    public static final int SONG = 0, HEADER = 1, GENRES = 2, ARTIST = 3, PLAYLIST = 4, RECENT = 5, SKELETON_ROW = 6, RECENT_SQUARE = 7;
+    private static final int TYPES = 8;
 
     /** One list item. Recyclable items implement {@link #create} and {@link #bind}; static ones {@link #view}. */
     public abstract static class Item {

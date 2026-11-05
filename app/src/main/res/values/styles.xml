@@ -1,5 +1,13 @@
-<resources><style name="BaseTheme" parent="android:style/Theme.Material.NoActionBar">
-<item name="android:fontFamily">sans</item><item name="android:colorAccent">#F3F4F5</item>
-<item name="android:windowLightStatusBar">false</item>
-<item name="android:windowActionModeOverlay">true</item><item name="android:windowBackground">#111315</item>
-</style><style name="AppTheme" parent="BaseTheme"/></resources>
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark Material base (system widgets inside dialogs stay legible); screens paint their own roles. -->
+    <style name="BaseTheme" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:colorAccent">#FF6A3D</item>
+        <item name="android:windowBackground">@color/window_background</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:statusBarColor">@color/transparent</item>
+        <item name="android:navigationBarColor">@color/transparent</item>
+    </style>
+    <style name="AppTheme" parent="BaseTheme" />
+</resources>

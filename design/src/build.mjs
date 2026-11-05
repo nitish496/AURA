@@ -129,8 +129,8 @@ const vector = (wdp, hdp, vw, vh, body, comment) =>
   `    android:viewportWidth="${vw}"\n    android:viewportHeight="${vh}">\n${body}\n</vector>\n`;
 const fillPaths = (paths, color) => paths.map((d) => `    <path\n        android:fillColor="${color}"\n        android:pathData="${d}" />`).join('\n');
 
-// Adaptive launcher icon: 108dp layers; the mark (44dp wide) sits well inside the 66dp safe zone.
-const LAUNCHER_K = 44 / markSize(1).w;
+// Adaptive launcher icon: 108dp layers; the mark (48dp wide) sits well inside the 66dp safe zone.
+const LAUNCHER_K = 48 / markSize(1).w;
 write(path.join(drawableDir, 'ic_launcher_foreground.xml'),
   vector(108, 108, 108, 108, fillPaths(markPaths(LAUNCHER_K, 54, 54), INK), 'AURA launcher foreground: the Refraction mark.'));
 write(path.join(drawableDir, 'ic_launcher_monochrome.xml'),

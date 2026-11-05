@@ -41,9 +41,11 @@ public final class ArtworkPalette {
         this.backgroundDeep = backgroundDeep;
         this.mesh = mesh;
         this.textPrimary = ColorRoles.ON_ART_PRIMARY;
-        int lightest = background;
-        for (int c : mesh) if (ColorMath.luminance(c) > ColorMath.luminance(lightest)) lightest = c;
-        float alpha = ColorMath.minimumAlpha(ColorRoles.ON_ART_PRIMARY, lightest, ColorMath.AA_TEXT, 0.64f);
+        // Contrast of translucent white is not monotonic in the background's luminance, so take
+        // the alpha every surface needs and use the largest.
+        float alpha = ColorMath.minimumAlpha(ColorRoles.ON_ART_PRIMARY, background, ColorMath.AA_TEXT + 0.05, 0.64f);
+        for (int c : mesh) alpha = Math.max(alpha, ColorMath.minimumAlpha(ColorRoles.ON_ART_PRIMARY, c, ColorMath.AA_TEXT + 0.05, 0.64f));
+        alpha = Math.min(1f, (float) Math.ceil(alpha * 255f) / 255f); // 8-bit alpha must not round below the minimum
         this.textSecondary = ColorMath.withAlpha(ColorRoles.ON_ART_PRIMARY, alpha);
         this.controlFill = ColorMath.withAlpha(ColorRoles.ON_ART_PRIMARY, 0.88f);
         this.controlTrack = ColorRoles.ON_ART_TRACK;

@@ -28,6 +28,18 @@ public interface AppHost {
 
     /** Glass context menu for a track (play next, add to queue, save/like, playlist, album, artist, share). */
     void showTrackMenu(Track track, View anchor);
+    /** As {@link #showTrackMenu(Track, View)} with extra rows (e.g. "Remove from Playlist") added at the top. */
+    void showTrackMenu(Track track, View anchor, List<MenuAction> extra);
+    /** Generic glass popover anchored to a view. */
+    void showMenu(View anchor, List<MenuAction> actions);
+    /** Glass text prompt (new playlist, rename). {@code onDone} gets the trimmed text; blank input is ignored. */
+    void prompt(String title, String hint, String initial, String actionLabel, java.util.function.Consumer<String> onDone);
+    /** Glass confirmation; {@code destructive} colours the action label with the error colour. */
+    void confirm(String title, String message, String actionLabel, boolean destructive, Runnable onConfirm);
+    /** Bottom sheet listing playlists (and "New Playlist") to add {@code tracks} to. */
+    void pickPlaylist(List<Track> tracks);
+    /** Width of the content column in dp (window width capped at 720dp on tablets). */
+    int contentWidthDp();
     /** Glass context menu for a list of tracks (album/playlist: play, shuffle, add to queue, save). */
     void showCollectionMenu(String title, List<Track> tracks, View anchor);
 

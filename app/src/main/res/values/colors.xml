@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Window and system-chrome colours only. UI colours live in dev.lilt.player.ui.ColorRoles. -->
+<resources>
+    <color name="window_background">#FFFFFF</color>
+    <color name="transparent">#00000000</color>
+</resources>
