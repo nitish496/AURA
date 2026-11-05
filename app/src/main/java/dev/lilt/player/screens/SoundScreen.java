@@ -37,7 +37,7 @@ import dev.lilt.player.ui.Ui;
 
 /**
  * Sound settings: equaliser (real band count and range from the phone), loudness normalisation,
- * playback speed with snap points, crossfade (0 = gapless), autoplay, sleep timer with a live
+ * playback speed with snap points, crossfade (0 = gapless), sleep timer with a live
  * countdown, and the stream cache. Everything is read from and written to the playback service.
  */
 @OptIn(markerClass = UnstableApi.class)
@@ -66,7 +66,7 @@ public final class SoundScreen extends Screen {
     private long lastBandSend;
 
     // Playback
-    private Toggle normaliseToggle, autoplayToggle;
+    private Toggle normaliseToggle;
     private Slider speedSlider, crossfadeSlider;
     private TextView speedValue, crossfadeValue;
     private float speed = 1f;
@@ -231,13 +231,7 @@ public final class SoundScreen extends Screen {
         fadeBlock.addView(hint, new LinearLayout.LayoutParams(-2, -2));
         group.add(fadeBlock);
 
-        ListRow auto = group.add(new ListRow(context, roles).title("Autoplay").subtitle("Autoplay similar songs when the queue ends"));
-        autoplayToggle = auto.toggle(false);
-        autoplayToggle.setListener((t, on) -> {
-            Bundle b = new Bundle();
-            b.putBoolean("autoplayEnabled", on);
-            host.player().setPlaybackOptions(b);
-        });
+        // Autoplay lives in the Queue (DESIGN.md: Queue toggles); not duplicated here.
         content.addView(group, section());
     }
 
@@ -435,7 +429,6 @@ public final class SoundScreen extends Screen {
             int seconds = Math.max(0, Math.min(12, b.getInt("crossfadeSeconds", 0)));
             crossfadeSlider.setValue(seconds / 12f);
             crossfadeValue.setText(crossfadeLabel(seconds));
-            autoplayToggle.setOn(b.getBoolean("autoplayEnabled", false), false, false);
         });
     }
 

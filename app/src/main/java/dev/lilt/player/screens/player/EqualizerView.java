@@ -111,10 +111,11 @@ public final class EqualizerView extends View {
         canvas.drawLine(left, t, r, t, grid);
         canvas.drawLine(left, zero, r, zero, grid);
         canvas.drawLine(left, t + h, r, t + h, grid);
-        label.setTextAlign(Paint.Align.LEFT);
-        canvas.drawText(topLabel, 0, t + 4 * density, label);
-        canvas.drawText(midLabel, 0, zero + 4 * density, label);
-        canvas.drawText(bottomLabel, 0, t + h + 4 * density, label);
+        label.setTextAlign(Paint.Align.RIGHT); // right-aligned in the gutter so text never meets the grid line
+        float lx = left - 8 * density;
+        canvas.drawText(topLabel, lx, t + 4 * density, label);
+        canvas.drawText(midLabel, lx, zero + 4 * density, label);
+        canvas.drawText(bottomLabel, lx, t + h + 4 * density, label);
         int n = xs.length;
         if (n == 0) return;
         path.rewind();

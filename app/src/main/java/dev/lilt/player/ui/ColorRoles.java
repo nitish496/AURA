@@ -74,7 +74,7 @@ public final class ColorRoles {
         separator = dark ? 0x1AFFFFFF : 0x1A000000;
         textPrimary = dark ? 0xFFF5F5F7 : 0xFF0B0B0C;
         textSecondary = dark ? 0xFFA1A1A8 : 0xFF545459;
-        textTertiary = dark ? 0xFF85858C : 0xFF6E6E74;
+        textTertiary = dark ? 0xFF8F8F96 : 0xFF66666C;
         textDisabled = dark ? 0xFF4A4A4F : 0xFFB8B8BE;
         accent = dark ? 0xFFFF6A3D : 0xFFC23A12;
         onAccent = dark ? 0xFF0B0B0C : 0xFFFFFFFF;

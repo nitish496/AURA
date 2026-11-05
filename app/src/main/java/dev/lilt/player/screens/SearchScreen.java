@@ -236,7 +236,7 @@ public final class SearchScreen extends DiscoverScreen {
         } else if (!(songsDone && libDone)) out.addAll(skeletonSongs(3));
         if (!artists.isEmpty()) {
             out.add(header("Artists", null, artists.size() > 3 ? () -> { scope = SCOPE_ARTISTS; scopes.select(scope); render(); } : null));
-            out.add(shelf(Math.min(artists.size(), 10), ShelfMetrics.artistCircle(windowDp()), true, new CardBinder() {
+            out.add(shelf(Math.min(artists.size(), 10), 96 /* spec: 96dp search artist circles */, true, new CardBinder() {
                 @Override public void bind(AlbumCard card, int i) {
                     CatalogArtist a = artists.get(i);
                     card.bind(a.name, a.followers > 0 ? DiscoverText.followers(a.followers) : "Artist");
@@ -277,7 +277,7 @@ public final class SearchScreen extends DiscoverScreen {
     private Rows.Item songItem(List<Track> list, int i) {
         Track t = list.get(i);
         SongItem item = song(t, list, i).album(false).onOpen(() -> rememberSong(t));
-        if (!isCurrent(t)) item.highlighted(highlight(t.title));
+        if (!isCurrent(t)) item.highlighted(highlight(t.isRemote() ? dev.lilt.player.stream.RemoteText.stripEmoji(t.title) : t.title));
         return item;
     }
 

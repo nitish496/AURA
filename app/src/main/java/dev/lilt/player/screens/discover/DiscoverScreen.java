@@ -236,9 +236,15 @@ public abstract class DiscoverScreen extends Screen {
     }
 
     /** Subtitle of a song row: artist, plus the album unless it is a single. */
+    /** Title for display: catalogue titles lose their emoji. */
+    protected static String displayTitle(Track t) {
+        return t.isRemote() ? dev.lilt.player.stream.RemoteText.stripEmoji(t.title) : t.title;
+    }
+
     protected static String songSubtitle(Track t, boolean withAlbum) {
-        if (!withAlbum || t.album == null || t.album.isEmpty() || Track.REMOTE_SINGLE.equals(t.album)) return t.artist;
-        return DiscoverText.joined(t.artist, t.album);
+        String artist = t.isRemote() ? dev.lilt.player.stream.RemoteText.stripEmoji(t.artist) : t.artist;
+        if (!withAlbum || t.album == null || t.album.isEmpty() || Track.REMOTE_SINGLE.equals(t.album)) return artist;
+        return DiscoverText.joined(artist, dev.lilt.player.stream.RemoteText.stripEmoji(t.album));
     }
 
     /** One song row. */
@@ -262,7 +268,7 @@ public abstract class DiscoverScreen extends Screen {
         @Override public View create(ViewGroup parent) { return new DiscoverRow(ctx, roles); }
         @Override public void bind(View v) {
             DiscoverRow row = (DiscoverRow) v;
-            row.bind(titleText != null ? titleText : track.title, songSubtitle(track, withAlbum), false, sourceOf(track));
+            row.bind(titleText != null ? titleText : displayTitle(track), songSubtitle(track, withAlbum), false, sourceOf(track));
             row.setRank(rank);
             boolean cur = isCurrent(track);
             row.setPlaying(cur, cur && host.player().playing());

@@ -512,14 +512,14 @@ function brandSheet() {
   return `<div class="brand">
     <div class="b-hero"><div style="color:#F5F5F7">${mark(220)}</div><div><div class="lt" style="color:#F5F5F7">Refraction</div>
       <div class="co" style="color:#A1A1A8;max-width:420px;margin-top:12px">A disc cut by a plane of glass. The upper half sits in air; the lower half is seen through the glass and appears displaced. Content stays sharp, the glass layer bends the light — the product in one shape.</div>
-      <div class="fn" style="color:#85858C;margin-top:16px">Grid 48 · two semicircles r 18.5 · gap 2.6 · offset 5.6 · monochrome; colour comes from context.</div></div></div>
+      <div class="fn" style="color:#8F8F96;margin-top:16px">Grid 48 · two semicircles r 18.5 · gap 2.6 · offset 5.6 · monochrome; colour comes from context.</div></div></div>
     <div class="b-row"><div class="b-tile" style="background:#0B0B0C">${lockup('#F5F5F7')}</div><div class="b-tile" style="background:#FFFFFF">${lockup('#111113')}</div></div>
     <div class="b-row"><div class="b-tile icons-tile">
       ${[120, 72, 48].map((s) => `<div class="appicon" style="width:${s}px;height:${s}px;border-radius:${s * 0.225}px">${mark(s * 0.62, '#F5F5F7')}</div>`).join('')}
       <div class="appicon" style="width:72px;height:72px;border-radius:50%;background:#D7DDE6;color:#2B3440">${mark(44)}</div>
       <div class="appicon" style="width:72px;height:72px;border-radius:50%;background:#3B4231;color:#DCE5C9">${mark(44)}</div>
       <div style="display:flex;gap:18px;align-items:end;color:#F5F5F7;margin-left:12px">${mark(24)}${mark(16)}</div>
-      <div class="fn" style="color:#85858C;margin-left:auto;max-width:220px">Launcher icon (graphite, adaptive) · Android 13 themed icons tint the monochrome layer · in-UI minimum 16dp.</div></div></div>
+      <div class="fn" style="color:#8F8F96;margin-left:auto;max-width:220px">Launcher icon (graphite, adaptive) · Android 13 themed icons tint the monochrome layer · in-UI minimum 16dp.</div></div></div>
   </div>`;
 }
 
@@ -552,9 +552,9 @@ const CSS = `
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#050506;color:#F5F5F7;font-family:Inter,sans-serif;-webkit-font-smoothing:antialiased;padding:48px}
 .page-head{display:flex;align-items:center;gap:16px;margin-bottom:8px}.page-head .lt{color:#F5F5F7}
-.page-sub{color:#85858C;font:400 15px/20px Inter;margin-bottom:40px;max-width:760px}
+.page-sub{color:#8F8F96;font:400 15px/20px Inter;margin-bottom:40px;max-width:760px}
 .frames{display:flex;flex-wrap:wrap;gap:48px 40px}
-.frame .cap{font:500 13px/18px Inter;color:#85858C;margin-bottom:12px;max-width:390px}
+.frame .cap{font:500 13px/18px Inter;color:#8F8F96;margin-bottom:12px;max-width:390px}
 .phone{width:390px;height:844px;position:relative;overflow:hidden;background:var(--canvas);color:var(--t1);border-radius:28px;isolation:isolate}
 .phone>*,.phone .abs{position:absolute}
 .lt{font:700 34px/40px InterD;letter-spacing:-.012em}.t1{font:700 28px/34px InterD;letter-spacing:-.01em}.t2{font:700 22px/28px InterD;letter-spacing:-.008em}
@@ -649,14 +649,14 @@ body{background:#050506;color:#F5F5F7;font-family:Inter,sans-serif;-webkit-font-
 .empty{position:absolute}
 .notice{display:flex;gap:12px;align-items:center;padding:14px 16px;border-radius:14px;background:var(--surface)}
 .sheet{width:1180px;background:#0B0B0C;border-radius:28px;padding:40px;position:relative;color:#F5F5F7}
-.sheet h3{font:600 13px/18px Inter;color:#85858C;text-transform:uppercase;letter-spacing:.06em;margin-bottom:16px}
+.sheet h3{font:600 13px/18px Inter;color:#8F8F96;text-transform:uppercase;letter-spacing:.06em;margin-bottom:16px}
 .sheet-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:40px}.blk{position:relative}
 .sws{display:grid;grid-template-columns:1fr 1fr;gap:10px 12px}.sw{display:grid;grid-template-columns:28px 1fr;grid-template-rows:auto auto;column-gap:10px;align-items:center}
-.sw i{grid-row:span 2;width:28px;height:28px;border-radius:8px;border:1px solid rgba(255,255,255,.12)}.sw b{font:500 12px/16px Inter;color:#F5F5F7}.sw span{font:400 11px/13px Inter;color:#85858C}
+.sw i{grid-row:span 2;width:28px;height:28px;border-radius:8px;border:1px solid rgba(255,255,255,.12)}.sw b{font:500 12px/16px Inter;color:#F5F5F7}.sw span{font:400 11px/13px Inter;color:#8F8F96}
 .light-blk .sw i{border-color:rgba(0,0,0,.1)}
 .ts{display:flex;align-items:baseline;justify-content:space-between;gap:16px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.06)}
 .glass-demo{position:relative;width:300px;height:260px;border-radius:14px;overflow:hidden}
-.icons{display:grid;grid-template-columns:repeat(10,1fr);gap:18px 8px;color:#F5F5F7}.icons div{display:flex;flex-direction:column;align-items:center;gap:6px}.icons span{font:400 10px/12px Inter;color:#85858C}
+.icons{display:grid;grid-template-columns:repeat(10,1fr);gap:18px 8px;color:#F5F5F7}.icons div{display:flex;flex-direction:column;align-items:center;gap:6px}.icons span{font:400 10px/12px Inter;color:#8F8F96}
 .brand{width:1180px;background:#0B0B0C;border-radius:28px;padding:48px;display:flex;flex-direction:column;gap:24px}
 .b-hero{display:flex;gap:56px;align-items:center;padding:24px}.b-row{display:flex;gap:24px}.b-tile{flex:1;height:220px;border-radius:20px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.08)}
 .icons-tile{justify-content:flex-start;gap:24px;padding:0 40px;background:#161618;height:200px}.appicon{background:#151517;display:grid;place-items:center;box-shadow:0 0 0 1px rgba(255,255,255,.08)}

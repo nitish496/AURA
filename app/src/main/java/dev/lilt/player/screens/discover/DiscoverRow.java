@@ -37,7 +37,21 @@ public final class DiscoverRow extends SongRow {
         save.setScaleType(ImageView.ScaleType.CENTER);
         save.setBackground(Ui.borderlessRipple(roles, Ui.dp(c, 20)));
         save.setVisibility(GONE);
-        addView(save, indexOfChild(more()), new LayoutParams(Ui.dp(c, 40), Ui.dp(c, DesignTokens.TOUCH_TARGET)));
+        // Compact controls so titles keep the width: visible 36dp + 44dp, 48dp tall; the save control's
+        // hit area is widened to 48dp towards the title in onLayout.
+        addView(save, indexOfChild(more()), new LayoutParams(Ui.dp(c, 36), Ui.dp(c, DesignTokens.TOUCH_TARGET)));
+        more().getLayoutParams().width = Ui.dp(c, 44);
+        ((LayoutParams) more().getLayoutParams()).setMarginEnd(0);
+        setPaddingRelative(getPaddingStart(), 0, 0, 0);
+    }
+
+    @Override protected void onLayout(boolean changed, int l, int t, int r, int b) {
+        super.onLayout(changed, l, t, r, b);
+        if (save.getVisibility() != VISIBLE) { setTouchDelegate(null); return; }
+        android.graphics.Rect hit = new android.graphics.Rect();
+        save.getHitRect(hit);
+        hit.left -= Ui.dp(getContext(), 12);
+        setTouchDelegate(new android.view.TouchDelegate(hit, save));
     }
 
     /** Chart rank (1-based) beside the artwork; 0 hides it. */

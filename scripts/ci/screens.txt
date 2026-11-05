@@ -19,4 +19,7 @@ _warm5|--es aura.play 'Paper Moons' --es aura.screen home|4
 10-equalizer|--es aura.screen equalizer|4
 11-replay|--es aura.screen stats|4
 12-home-light|--es aura.screen home --es aura.theme light|8
-13-now-playing-light|--es aura.screen nowplaying --es aura.theme light|6
+# Now Playing takes its colours from the artwork (DESIGN.md section 8), so the app theme does not change it;
+# the light-theme checks use screens that follow the theme.
+13-library-light|--es aura.screen library --es aura.theme light|5
+14-sound-light|--es aura.screen equalizer --es aura.theme light|4

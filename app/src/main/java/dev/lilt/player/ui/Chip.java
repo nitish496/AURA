@@ -26,7 +26,6 @@ public class Chip extends TextView {
         Type.singleLine(this);
         setText(label);
         setGravity(Gravity.CENTER);
-        setPadding(Ui.dp(c, 14), 0, Ui.dp(c, 14), 0);
         setMinHeight(Ui.dp(c, DesignTokens.TOUCH_TARGET));
         setClickable(true);
         setFocusable(true);
@@ -44,6 +43,8 @@ public class Chip extends TextView {
         int inset = (Ui.dp(getContext(), DesignTokens.TOUCH_TARGET) - Ui.dp(getContext(), DesignTokens.CHIP_HEIGHT)) / 2;
         setBackground(Ui.pressableInset(roles, on ? roles.textPrimary : roles.fill, -1, inset));
         setTextColor(on ? roles.canvas : roles.textPrimary);
+        // setBackground() replaces the padding with the drawable's own (0 horizontally): set it last.
+        setPadding(Ui.dp(getContext(), 14), 0, Ui.dp(getContext(), 14), 0);
     }
 
     /** Horizontally scrolling, single-select chip row with 16dp side padding and 8dp gaps. */
@@ -59,8 +60,8 @@ public class Chip extends TextView {
             setHorizontalScrollBarEnabled(false);
             setClipToPadding(false);
             int m = Ui.dp(c, DesignTokens.MARGIN);
-            setPadding(m, 0, m, 0);
             strip = Ui.row(c);
+            strip.setPadding(m, 0, m, 0);
             addView(strip);
         }
 

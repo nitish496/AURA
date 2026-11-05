@@ -5,7 +5,7 @@
 export const color = {
   dark: {
     canvas: '#0B0B0C', surface: '#161618', surfaceElevated: '#1E1E21', fill: '#262629', fillStrong: '#313135',
-    separator: 'rgba(255,255,255,0.10)', textPrimary: '#F5F5F7', textSecondary: '#A1A1A8', textTertiary: '#85858C',
+    separator: 'rgba(255,255,255,0.10)', textPrimary: '#F5F5F7', textSecondary: '#A1A1A8', textTertiary: '#8F8F96',
     textDisabled: '#4A4A4F', accent: '#FF6A3D', onAccent: '#0B0B0C', error: '#FF6961',
     glassTint: 'rgba(28,28,30,0.60)', glassTintFallback: 'rgba(30,30,33,0.92)',
     glassRimTop: 'rgba(255,255,255,0.35)', glassRimBottom: 'rgba(255,255,255,0.05)', glassShadow: 'rgba(0,0,0,0.35)',
@@ -13,7 +13,7 @@ export const color = {
   },
   light: {
     canvas: '#FFFFFF', surface: '#F4F4F6', surfaceElevated: '#FFFFFF', fill: '#EDEDF0', fillStrong: '#E2E2E6',
-    separator: 'rgba(0,0,0,0.10)', textPrimary: '#0B0B0C', textSecondary: '#545459', textTertiary: '#6E6E74',
+    separator: 'rgba(0,0,0,0.10)', textPrimary: '#0B0B0C', textSecondary: '#545459', textTertiary: '#66666C',
     textDisabled: '#B8B8BE', accent: '#C23A12', onAccent: '#FFFFFF', error: '#C4261D',
     glassTint: 'rgba(255,255,255,0.65)', glassTintFallback: 'rgba(250,250,252,0.94)',
     glassRimTop: 'rgba(255,255,255,0.90)', glassRimBottom: 'rgba(255,255,255,0.30)', glassShadow: 'rgba(0,0,0,0.12)',
