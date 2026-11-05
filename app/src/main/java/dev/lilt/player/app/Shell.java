@@ -38,6 +38,7 @@ import dev.lilt.player.ui.ColorRoles;
 import dev.lilt.player.ui.EdgeToEdge;
 import dev.lilt.player.ui.Motion;
 import dev.lilt.player.ui.ScrollBehavior;
+import dev.lilt.player.ui.ShelfMetrics;
 import dev.lilt.player.ui.Theme;
 import dev.lilt.player.ui.Ui;
 import java.util.ArrayList;
@@ -56,12 +57,12 @@ import java.util.function.Consumer;
  * {@link AppHost} (services for screens) and {@link Navigator}.
  *
  * <pre>
- * column (max 720dp)
+ * column (max 840dp, centred)
  *   content        per-tab stacks; the blur backdrop of the chrome
  *   chrome         FloatingChrome: tab bar, Search control, mini player
- *   presentLayer   full-screen presentations (Now Playing, Lyrics, Queue, Sound, Replay, Settings)
- *   overlay        menus, sheets, dialogs, toasts
  *   gate           startup mark / first-run permission screen
+ * presentLayer     full-width, full-screen presentations (Now Playing, Lyrics, Queue, Sound, Replay, Settings)
+ * overlay          full-width menus, sheets, dialogs, toasts
  * </pre>
  */
 public final class Shell implements AppHost, Navigator {
@@ -79,11 +80,11 @@ public final class Shell implements AppHost, Navigator {
 
     private interface Closer { boolean close(); }
 
-    /** Caps the content width on tablets and landscape foldables. */
+    /** Caps the tab content width on tablets and landscape foldables (presentations and overlays stay full width). */
     private static final class Column extends FrameLayout {
         Column(Context c) { super(c); }
         @Override protected void onMeasure(int widthSpec, int heightSpec) {
-            int cap = Ui.dp(getContext(), 720);
+            int cap = Ui.dp(getContext(), ShelfMetrics.COLUMN_MAX_DP);
             if (MeasureSpec.getSize(widthSpec) > cap) widthSpec = MeasureSpec.makeMeasureSpec(cap, MeasureSpec.EXACTLY);
             super.onMeasure(widthSpec, heightSpec);
         }
@@ -116,6 +117,7 @@ public final class Shell implements AppHost, Navigator {
     private Object backCallback;
     private boolean backRegistered;
     private String pendingCoverTrackId;
+    private int cfgW, cfgH;
 
     public Shell(Activity activity, Bundle saved, LibraryRepoImpl.Model retained) {
         this.activity = activity;
@@ -155,10 +157,10 @@ public final class Shell implements AppHost, Navigator {
         column.addView(chrome, new FrameLayout.LayoutParams(-1, -1));
         presentLayer = new FrameLayout(activity);
         presentLayer.setVisibility(View.GONE);
-        column.addView(presentLayer, new FrameLayout.LayoutParams(-1, -1));
+        root.addView(presentLayer, new FrameLayout.LayoutParams(-1, -1));
         overlay = new FrameLayout(activity);
         overlay.setClipChildren(false);
-        column.addView(overlay, new FrameLayout.LayoutParams(-1, -1));
+        root.addView(overlay, new FrameLayout.LayoutParams(-1, -1));
         toaster = new Toaster(activity, roles);
         toaster.setBackdrop(content);
         overlay.addView(toaster, Toaster.params(activity));
@@ -172,7 +174,16 @@ public final class Shell implements AppHost, Navigator {
 
         repo.addListener(this::libraryChanged);
         hub.addListener(this::playbackChanged);
+        cfgW = activity.getResources().getConfiguration().screenWidthDp;
+        cfgH = activity.getResources().getConfiguration().screenHeightDp;
         if (saved != null) restore(saved);
+        finishBuild();
+        registerBack();
+        try { AudiusClient.get(activity).warmUp(); } catch (RuntimeException ignored) {}
+    }
+
+    /** Makes sure the current tab has a root, applies visibility and syncs chrome after (re)building the stacks. */
+    private void finishBuild() {
         if (stacks.get(current).isEmpty()) {
             Entry e = makeEntry(newRoot(current));
             stacks.get(current).add(e);
@@ -183,10 +194,57 @@ public final class Shell implements AppHost, Navigator {
             for (int i = 0; i < st.size(); i++) st.get(i).wrapper.setVisibility(t == current && i == st.size() - 1 ? View.VISIBLE : View.GONE);
         }
         syncChrome(false);
+        if (shortWindow() && current != Tab.SEARCH) chrome.setMinimised(true, false);
         syncMini();
         updateGate();
-        registerBack();
-        try { AudiusClient.get(activity).warmUp(); } catch (RuntimeException ignored) {}
+    }
+
+    /** True in a landscape phone window, where the full-size chrome would eat too much height. */
+    private boolean shortWindow() { return ShelfMetrics.compactChrome(activity.getResources().getConfiguration().screenHeightDp); }
+
+    /** Returns the chrome to its resting state after navigation: expanded, or compact in short windows. */
+    private void restChrome(boolean animate) {
+        chrome.setMinimised(shortWindow() && current != Tab.SEARCH, animate);
+    }
+
+    /**
+     * Rotation / resize / fold: the activity is not recreated (see the manifest's configChanges), so
+     * the shell rebuilds the screen stacks from their saved state, which recomputes every cached dp
+     * metric (shelf cards, hero sizes, columns), and re-requests insets. Playback, the library model
+     * and the chrome keep running.
+     */
+    public void onConfigurationChanged(android.content.res.Configuration c) {
+        if (destroyed) return;
+        int w = c.screenWidthDp, h = c.screenHeightDp;
+        boolean sizeChanged = w != cfgW || h != cfgH;
+        cfgW = w;
+        cfgH = h;
+        if (sizeChanged) {
+            settle();
+            for (Closer cl : new ArrayList<>(overlays)) cl.close();
+            Entry shownNow = visibleEntry();
+            if (shownNow != null) hide(shownNow);
+            Bundle saved = new Bundle();
+            save(saved);
+            for (Tab t : Tab.values()) {
+                for (Entry e : stacks.get(t)) { e.screen.onDestroy(); content.removeView(e.wrapper); }
+                stacks.get(t).clear();
+            }
+            for (Entry e : presented) e.screen.onDestroy();
+            presented.clear();
+            presentLayer.removeAllViews();
+            presentLayer.setVisibility(View.GONE);
+            chrome.setVisibility(View.VISIBLE);
+            chrome.setAlpha(1f);
+            restore(saved);
+            behavior.set(false);
+            chrome.setMinimised(false, false);
+            finishBuild();
+            if (visible) show(visibleEntry());
+            updateBars();
+        }
+        root.requestApplyInsets();
+        dispatchAllInsets();
     }
 
     // ------------------------------------------------------------------ accessors for helpers
@@ -437,7 +495,7 @@ public final class Shell implements AppHost, Navigator {
         e.wrapper.setVisibility(View.INVISIBLE);
         afterAdd(e, current, false, null);
         behavior.set(false);
-        chrome.setMinimised(false, true);
+        restChrome(true);
         slide(e, prev, true, null);
         updateBackCallback();
     }
@@ -457,7 +515,7 @@ public final class Shell implements AppHost, Navigator {
         final Entry in = st.get(st.size() - 1);
         behavior.set(false);
         if (tab == current) {
-            chrome.setMinimised(false, animate);
+            restChrome(animate);
             if (animate) slide(in, out, false, () -> destroy(out));
             else { hide(out); in.wrapper.setVisibility(View.VISIBLE); destroy(out); show(in); updateBars(); }
         } else destroy(out);
@@ -487,7 +545,7 @@ public final class Shell implements AppHost, Navigator {
             if (st.size() > 1) popToRoot(tab, true);
             else if (!st.isEmpty()) st.get(0).screen.scrollToTop();
             behavior.set(false);
-            chrome.setMinimised(false, true);
+            restChrome(true);
             return;
         }
         Entry out = topEntry(current);
@@ -509,7 +567,7 @@ public final class Shell implements AppHost, Navigator {
         behavior.set(false);
         chrome.setKeyboardInset(tab == Tab.SEARCH ? imeBottom : 0);
         syncChrome(true);
-        if (tab != Tab.SEARCH) chrome.setMinimised(false, false);
+        if (tab != Tab.SEARCH) restChrome(false);
         crossfade(in, out);
         updateBackCallback();
     }
@@ -624,8 +682,10 @@ public final class Shell implements AppHost, Navigator {
         return false;
     }
 
-    private boolean canHandleBack() {
-        return !overlays.isEmpty() || !presented.isEmpty() || current != Tab.HOME || stack(current).size() > 1;
+    /** True when Back has something closable to do; Back must never leave the app while this holds. */
+    boolean canHandleBack() {
+        return !overlays.isEmpty() || !presented.isEmpty() || current != Tab.HOME || stack(current).size() > 1
+                || gateKind == 2 || chrome.search.keyboardFocused();
     }
 
     /** Leaves the app the way the system would for a launcher activity. */
@@ -636,6 +696,7 @@ public final class Shell implements AppHost, Navigator {
     private void registerBack() {
         if (Build.VERSION.SDK_INT < 33) return;
         Api33.register(this);
+        backRegistered = true;
     }
 
     private void unregisterBack() {
@@ -643,12 +704,11 @@ public final class Shell implements AppHost, Navigator {
     }
 
     private void updateBackCallback() {
-        // Predictive back: the callback is only registered while the shell has something to do;
-        // at the root the system's own back-to-home animation runs.
-        if (Build.VERSION.SDK_INT < 33) return;
-        boolean want = canHandleBack() || gateKind == 2;
-        if (want && !backRegistered) { Api33.register(this); backRegistered = true; }
-        else if (!want && backRegistered) { Api33.unregister(this); backRegistered = false; }
+        // The callback stays registered for the activity's whole life (see registerBack): the shell's
+        // state changes in many places (menus, sheets, search focus, transitions) and a stale,
+        // unregistered callback would let the system finish the activity with something still open.
+        // At the root with nothing open the callback leaves the app itself (leave()).
+        if (Build.VERSION.SDK_INT >= 33 && !backRegistered && !destroyed) registerBack();
     }
 
     @android.annotation.TargetApi(33)

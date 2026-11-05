@@ -92,7 +92,8 @@ public final class NowPlayingScreen extends Screen {
 
         backdrop = new PlayerBackdrop(c);
 
-        View handle = new dev.lilt.player.screens.player.HandleView(c);
+        dev.lilt.player.screens.player.HandleView handle = new dev.lilt.player.screens.player.HandleView(c);
+        handle.setOnClose(() -> host.nav().dismiss());
 
         art = new ImageView(c);
         art.setScaleType(ImageView.ScaleType.CENTER_CROP);

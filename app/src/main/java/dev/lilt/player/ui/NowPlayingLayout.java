@@ -86,7 +86,9 @@ public final class NowPlayingLayout {
             y[3] = y[2] + TITLE_ROW + gaps[2];
             y[4] = y[3] + SCRUBBER + gaps[3];
             y[5] = y[4] + TRANSPORT + gaps[4];
-            return new NowPlayingLayout(widthDp, heightDp, art, MARGIN, y, gaps, true);
+            // Centre the artwork in the left half; the right pane is laid out by NowPlayingGeometry.
+            int artX = Math.max(MARGIN, (widthDp / 2 - art) / 2);
+            return new NowPlayingLayout(widthDp, heightDp, art, artX, y, gaps, true);
         }
         int art = Math.max(MIN_ART, Math.min(MAX_ART, Math.min(widthDp - 2 * MARGIN, budget)));
         int extra = Math.max(0, budget - art);

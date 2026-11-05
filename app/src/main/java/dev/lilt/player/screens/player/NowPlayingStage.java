@@ -28,7 +28,7 @@ public final class NowPlayingStage extends ViewGroup {
     private int insetTop, insetBottom;
     private NowPlayingGeometry geometry;
     private Listener listener;
-    private boolean dragging, startedOnScrubber, dismissing;
+    private boolean dragging, startedOnScrubber, dismissing, armed;
     private float downRawX, downRawY;
     private VelocityTracker velocity;
 
@@ -40,7 +40,21 @@ public final class NowPlayingStage extends ViewGroup {
         this.backdrop = backdrop; this.handle = handle; this.art = art; this.titleBlock = titleBlock; this.heart = heart;
         this.more = more; this.scrubber = scrubber; this.prev = prev; this.play = play; this.next = next; this.capsule = capsule;
         setClipChildren(false);
-        for (View v : new View[] {backdrop, handle, art, titleBlock, heart, more, scrubber, prev, play, next, capsule}) addView(v);
+        for (View v : new View[] {backdrop, art, titleBlock, heart, more, scrubber, prev, play, next, capsule, handle}) addView(v);
+    }
+
+    /**
+     * Drag-to-dismiss may only start on the handle strip, the artwork or the title text (and, in the
+     * two-pane layout, anywhere in the left half). Never on the scrubber, transport or capsule, so
+     * a sloppy vertical scrub or button press cannot close the player.
+     */
+    private boolean inDismissZone(float x, float y) {
+        if (geometry == null) return false;
+        if (y <= handle.getTop() + px(NowPlayingGeometry.CHEVRON_TARGET)) return true;
+        float pad = px(12);
+        if (x >= art.getLeft() - pad && x <= art.getRight() + pad && y >= art.getTop() - pad && y <= art.getBottom() + pad) return true;
+        if (x >= titleBlock.getLeft() && x <= titleBlock.getRight() && y >= titleBlock.getTop() && y <= titleBlock.getBottom()) return true;
+        return geometry.twoPane && x < getWidth() / 2f;
     }
 
     public void setListener(Listener l) { listener = l; }
@@ -127,13 +141,14 @@ public final class NowPlayingStage extends ViewGroup {
                 dragging = false;
                 startedOnScrubber = e.getX() >= scrubber.getLeft() && e.getX() <= scrubber.getRight()
                         && e.getY() >= scrubber.getTop() && e.getY() <= scrubber.getBottom();
+                armed = !startedOnScrubber && inDismissZone(e.getX(), e.getY());
                 if (velocity != null) velocity.recycle();
                 velocity = VelocityTracker.obtain();
                 velocity.addMovement(e);
                 break;
             case MotionEvent.ACTION_MOVE:
                 if (velocity != null) velocity.addMovement(e);
-                if (!dragging && !startedOnScrubber) {
+                if (!dragging && armed) {
                     float dy = e.getRawY() - downRawY, dx = e.getRawX() - downRawX;
                     if (dy > slop && dy > Math.abs(dx) * 1.2f) { dragging = true; return true; }
                 }
@@ -157,10 +172,11 @@ public final class NowPlayingStage extends ViewGroup {
                 if (velocity == null) velocity = VelocityTracker.obtain();
                 velocity.addMovement(e);
                 startedOnScrubber = false;
+                armed = inDismissZone(e.getX(), e.getY());
                 return true;
             case MotionEvent.ACTION_MOVE: {
                 float dy = e.getRawY() - downRawY;
-                if (!dragging && dy > slop && dy > Math.abs(e.getRawX() - downRawX)) dragging = true;
+                if (!dragging && armed && dy > slop && dy > Math.abs(e.getRawX() - downRawX)) dragging = true;
                 if (dragging) {
                     float offset = DismissGesture.follow(dy - slop, density);
                     setTranslationY(offset);

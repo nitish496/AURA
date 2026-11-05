@@ -34,6 +34,7 @@ public class BottomSheet extends FrameLayout {
     private final View scrim;
     private final GlassView panel;
     private final LinearLayout body;
+    private final CappedScrollView scroller;
     private OnDismiss onDismiss;
     private boolean showing;
     private float downY, startTranslation;
@@ -64,9 +65,11 @@ public class BottomSheet extends FrameLayout {
             body.addView(t);
         }
         if (subtitle != null) body.addView(Type.text(c, TypeScale.FOOTNOTE, roles.textSecondary, subtitle));
-        panel.addView(body, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
+        scroller = new CappedScrollView(c);
+        scroller.addView(body, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
+        panel.addView(scroller, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
         int m = Ui.dp(c, 8);
-        LayoutParams pp = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT, Gravity.BOTTOM);
+        LayoutParams pp = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
         pp.setMargins(m, 0, m, m);
         addView(panel, pp);
         panel.setClickable(true);
@@ -97,7 +100,17 @@ public class BottomSheet extends FrameLayout {
         if (showing) return;
         showing = true;
         panel.setBackdrop(backdrop);
-        ((LayoutParams) panel.getLayoutParams()).bottomMargin = Ui.dp(getContext(), 8) + bottomInsetPx;
+        Context c = getContext();
+        LayoutParams lp = (LayoutParams) panel.getLayoutParams();
+        lp.bottomMargin = Ui.dp(c, 8) + bottomInsetPx;
+        int winW = root.getWidth() > 0 ? root.getWidth() : c.getResources().getDisplayMetrics().widthPixels;
+        int winH = root.getHeight() > 0 ? root.getHeight() : c.getResources().getDisplayMetrics().heightPixels;
+        int side = Ui.dp(c, 8);
+        lp.width = ShelfMetrics.panelWidthPx(winW, side, Ui.dp(c, ShelfMetrics.SHEET_MAX_DP));
+        int topInset = Ui.dp(c, 24);
+        if (android.os.Build.VERSION.SDK_INT >= 23 && root.getRootWindowInsets() != null) topInset = root.getRootWindowInsets().getSystemWindowInsetTop();
+        // window height minus insets minus 16dp, less the sheet's own 8dp bottom margin
+        scroller.setMaxHeight(ShelfMetrics.maxPanelHeightPx(winH, topInset, bottomInsetPx, Ui.dp(c, 16) + lp.bottomMargin - bottomInsetPx, Ui.dp(c, 120)));
         root.addView(this, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         scrim.setAlpha(0f);
         panel.setTranslationY(Ui.dpf(getContext(), 480));

@@ -95,7 +95,7 @@ public final class CatalogPlaylistScreen extends DiscoverScreen {
 
         LinearLayout top = Ui.row(ctx);
         top.setGravity(Gravity.TOP);
-        int art = Math.min(dp(160), (int) (ctx.getResources().getDisplayMetrics().widthPixels * 0.40f));
+        int art = Math.min(dp(160), dp(Math.round(host.contentWidthDp() * 0.40f)));
         ImageView cover = new ImageView(ctx);
         cover.setScaleType(ImageView.ScaleType.CENTER_CROP);
         Ui.roundOutline(cover, dpf(DesignTokens.artworkRadius(Ui.toDp(ctx, art))));
