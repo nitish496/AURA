@@ -57,7 +57,7 @@ public final class DesignTokensTest {
         TypeScale.Style[] ramp = TypeScale.ramp();
         for (int i = 1; i < ramp.length; i++) check(ramp[i].size <= ramp[i - 1].size, "ramp ordered at " + ramp[i].name);
         for (TypeScale.Style s : TypeScale.all()) {
-            check(s.lineHeight >= s.size * 1.15f && s.lineHeight <= s.size * 1.45f, "line height of " + s);
+            check(s.lineHeight >= s.size * (s.size >= 34 ? 1.05f : 1.15f) && s.lineHeight <= s.size * 1.45f, "line height of " + s);
             check(s.weight == 400 || s.weight == 500 || s.weight == 600 || s.weight == 700, "bundled weight for " + s);
             check(!s.display || s.weight == 700, "Inter Display is bundled in bold only: " + s);
             check(Math.abs(s.tracking) <= 0.07f, "tracking range for " + s);

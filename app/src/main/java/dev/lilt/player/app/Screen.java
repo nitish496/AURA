@@ -64,6 +64,20 @@ public abstract class Screen {
     /** Dark/light switched; rebuild colours from {@link AppHost#colors()}. */
     public void onThemeChanged() {}
 
+    /**
+     * True while this screen draws dark content (artwork, Now Playing tint) under the system bars
+     * in both themes, so the shell draws light status/navigation bar icons. Call
+     * {@link AppHost#invalidateSystemBars()} when the answer changes (e.g. a header scrolled away).
+     */
+    public boolean lightSystemBars() { return false; }
+
+    /**
+     * The shell's bottom glass search field (shown on the SEARCH tab) changed. Delivered to the
+     * top screen of the SEARCH tab; {@code submitted} is true for the IME search action. Debounce
+     * network work yourself.
+     */
+    public void onSearchQuery(String query, boolean submitted) {}
+
     public Bundle saveState() { return Bundle.EMPTY; }
 
     public void restoreState(Bundle state) {}

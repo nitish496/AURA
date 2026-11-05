@@ -39,6 +39,15 @@ public interface LibraryRepo {
     void removeFromPlaylist(String name, String trackId);
     void deletePlaylist(String name);
     List<Track> playlistTracks(String name);
+    /** False when {@code newName} is blank, longer than 80 chars or already used. */
+    boolean renamePlaylist(String oldName, String newName);
+    void addAllToPlaylist(String name, List<Track> tracks);
+    void movePlaylistTrack(String name, int from, int to);
+
+    /** Moods (MoodStore labels) of a track, and the library tracks with a mood. */
+    java.util.Set<String> moods(String trackId);
+    void setMoods(String trackId, java.util.Collection<String> moods);
+    List<Track> moodTracks(String mood);
 
     SavedCatalog saved();
     boolean isSaved(String id);

@@ -40,4 +40,26 @@ public interface AppHost {
     void openCatalogArtist(String userId, String name);
     void openCatalogPlaylist(CatalogPlaylist playlist);
     void openPlaylist(String name);
+
+    /**
+     * Report scrolling of the screen's main scroller (px offset from the top, change since the
+     * last call; positive = scrolled down). The shell minimises the tab bar on scroll-down and
+     * restores it on scroll-up ({@code ui.ScrollBehavior}). Ignored unless {@code source} is visible.
+     */
+    void onScroll(Screen source, int scrollY, int dy);
+
+    /** Re-reads {@link Screen#lightSystemBars()} of the visible screen. */
+    void invalidateSystemBars();
+
+    /** Switches to the SEARCH tab and puts {@code query} into the bottom search field. */
+    void setSearchQuery(String query);
+
+    /** Theme preference values for {@link #setThemeMode(int)}. */
+    int THEME_SYSTEM = 0, THEME_DARK = 1, THEME_LIGHT = 2;
+    int themeMode();
+    /** Persists the preference; visible screens get {@link Screen#onThemeChanged()}. */
+    void setThemeMode(int mode);
+
+    /** Asks for the media (audio files) permission, or opens App info after a permanent denial. */
+    void requestMediaPermission();
 }

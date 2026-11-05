@@ -17,6 +17,8 @@ public interface PlayerHub {
     int index();
     boolean playing();
     boolean buffering();
+    /** Paused because the phone went offline during a stream; resumes by itself (session extra). */
+    boolean waitingForNetwork();
     long position();
     long duration();
 
