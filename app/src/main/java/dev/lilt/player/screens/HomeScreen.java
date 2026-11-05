@@ -170,10 +170,6 @@ public final class HomeScreen extends ListScreen {
             items.add(emptyState());
             return items;
         }
-        if (!mixes.isEmpty()) {
-            items.add(Kit.section(context, roles, "Top Picks for You", null));
-            items.add(mixShelf());
-        }
         List<AlbumGroup> recent = albumsOf(host.library().recentlyPlayed(40), 12);
         if (!recent.isEmpty()) {
             items.add(Kit.section(context, roles, "Recently Played", () -> host.nav().push(new SongsScreen("recent"))));
@@ -184,9 +180,18 @@ public final class HomeScreen extends ListScreen {
             items.add(Kit.section(context, roles, "Recently Added", () -> host.nav().push(new SongsScreen("added"))));
             items.add(Kit.albumShelf(host, added));
         }
+        final List<Track> liked = new ArrayList<>(host.library().favourites());
+        if (!liked.isEmpty()) {
+            items.add(Kit.section(context, roles, "Liked Songs", () -> host.nav().push(new SongsScreen("favourites"))));
+            items.add(trackShelf(liked.size() > 30 ? new ArrayList<>(liked.subList(0, 30)) : liked));
+        }
+        if (!mixes.isEmpty()) {
+            items.add(Kit.section(context, roles, "Top Picks for You", null));
+            items.add(mixShelf());
+        }
         if (!trending.isEmpty() && SettingsScreen.showCatalogue(context)) {
             items.add(Kit.section(context, roles, "Trending on Audius", null));
-            items.add(trendingShelf());
+            items.add(trackShelf(trending));
         }
         items.add(Kit.spacer(context, 16));
         return items;
@@ -239,26 +244,21 @@ public final class HomeScreen extends ListScreen {
         return shelf;
     }
 
-    private View trendingShelf() {
+    private View trackShelf(final List<Track> tracks) {
         final int dp = Kit.cardDp(host);
         ShelfView shelf = new ShelfView(context);
         shelf.setAdapter(new ShelfView.Adapter() {
-            @Override public int count() { return trending.size(); }
+            @Override public int count() { return tracks.size(); }
             @Override public View create(ViewGroup parent) { return new AlbumCard(context, roles, dp, false, false); }
             @Override public void bind(View v, int i) {
-                final Track t = trending.get(i);
+                final Track t = tracks.get(i);
                 AlbumCard card = (AlbumCard) v;
                 card.bind(t.title, t.artist);
-                card.setOnClickListener(x -> { Haptics.click(x); host.player().play(new ArrayList<>(trending), indexOf(t), false); });
+                card.setOnClickListener(x -> { Haptics.click(x); host.player().play(new ArrayList<>(tracks), i, false); });
                 card.setOnLongClickListener(x -> { Haptics.longPress(x); host.showTrackMenu(t, x); return true; });
             }
-            @Override public void onVisible(View v, int i) { host.artwork().load(((AlbumCard) v).cover(), trending.get(i)); }
+            @Override public void onVisible(View v, int i) { host.artwork().load(((AlbumCard) v).cover(), tracks.get(i)); }
         });
         return shelf;
-    }
-
-    private int indexOf(Track t) {
-        for (int i = 0; i < trending.size(); i++) if (trending.get(i).id.equals(t.id)) return i;
-        return 0;
     }
 }
