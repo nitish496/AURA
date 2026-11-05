@@ -86,6 +86,9 @@ public final class GlassDialog extends FrameLayout {
         return d;
     }
 
+    /** Current text of a prompt dialog ({@code null} for other dialogs). */
+    public String text() { return input == null ? null : input.getText().toString(); }
+
     public static GlassDialog prompt(Context c, ColorRoles roles, View backdrop, String title, String hint, String initial,
                                      String actionLabel, Consumer<String> onDone) {
         GlassDialog d = new GlassDialog(c, roles, backdrop, title, null);

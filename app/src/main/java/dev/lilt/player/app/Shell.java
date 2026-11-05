@@ -132,6 +132,7 @@ public final class Shell implements AppHost, Navigator {
         };
         io = Executors.newFixedThreadPool(3, factory);
         repo = new LibraryRepoImpl(activity, io, retained);
+        io.execute(repo::warmStores);
         artwork = new Artwork(activity, repo.library());
         hub = new PlayerHubImpl(activity, repo, new PlayerHubImpl.Events() {
             @Override public void onMessage(String message) { toast(message); }
@@ -221,6 +222,8 @@ public final class Shell implements AppHost, Navigator {
         cfgH = h;
         if (sizeChanged) {
             settle();
+            final PromptState reopen = activePrompt;
+            final String typed = reopen == null ? null : reopen.dialog.text();
             for (Closer cl : new ArrayList<>(overlays)) cl.close();
             Entry shownNow = visibleEntry();
             if (shownNow != null) hide(shownNow);
@@ -242,6 +245,7 @@ public final class Shell implements AppHost, Navigator {
             finishBuild();
             if (visible) show(visibleEntry());
             updateBars();
+            if (reopen != null && typed != null) prompt(reopen.title, reopen.hint, typed, reopen.action, reopen.onDone);
         }
         root.requestApplyInsets();
         dispatchAllInsets();
@@ -949,6 +953,7 @@ public final class Shell implements AppHost, Navigator {
 
     @Override public void prompt(String title, String hint, String initial, String actionLabel, Consumer<String> onDone) {
         final GlassDialog d = GlassDialog.prompt(activity, roles, overlayBackdrop(), title, hint, initial, actionLabel, onDone);
+        activePrompt = new PromptState(d, title, hint, actionLabel, onDone);
         trackDialog(d);
     }
 
@@ -957,10 +962,21 @@ public final class Shell implements AppHost, Navigator {
         trackDialog(d);
     }
 
+    /** An open text prompt, remembered so a rotation can re-open it with what the user typed. */
+    private static final class PromptState {
+        final GlassDialog dialog;
+        final String title, hint, action;
+        final Consumer<String> onDone;
+        PromptState(GlassDialog d, String title, String hint, String action, Consumer<String> onDone) {
+            this.dialog = d; this.title = title; this.hint = hint; this.action = action; this.onDone = onDone;
+        }
+    }
+    private PromptState activePrompt;
+
     private void trackDialog(GlassDialog d) {
         final Closer closer = () -> { d.dismiss(); return true; };
         overlays.add(closer);
-        d.setOnClosed(() -> { overlays.remove(closer); updateBackCallback(); });
+        d.setOnClosed(() -> { overlays.remove(closer); if (activePrompt != null && activePrompt.dialog == d) activePrompt = null; updateBackCallback(); });
         d.show(overlay, sysTop);
         updateBackCallback();
     }

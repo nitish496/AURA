@@ -161,6 +161,11 @@ public final class LibraryRepoImpl implements LibraryRepo {
     /** True once the first scan finished (or there is no permission and nothing to scan). */
     public boolean ready() { return loaded || !hasPermission(); }
 
+    /** Parses the saved-catalogue and recent-remote-track files now, off the main thread (first use would block it). */
+    public void warmStores() {
+        try { saved.tracks(); remote.all(); } catch (RuntimeException ignored) { }
+    }
+
     public void setVisible(boolean nowVisible) {
         visible = nowVisible;
         if (visible && (dirty || (!loaded && hasPermission()))) refresh();
