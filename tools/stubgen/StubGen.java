@@ -66,6 +66,9 @@ public final class StubGen {
     ClassTree tree;
     List<Ctor> keptCtors = new ArrayList<>();
     boolean noArgAvailable;
+    boolean hidden; // not accessible outside its package
+    boolean emit;
+    boolean supertypeRole; // hidden, but a supertype of an emitted type
   }
 
   final Map<String, ClassInfo> classes = new HashMap<>();
@@ -117,20 +120,26 @@ public final class StubGen {
       collectDrops(u);
       units.add(u);
       for (Tree t : cu.getTypeDecls()) {
-        if (t instanceof ClassTree ct) register(u, ct, u.pkg.isEmpty() ? "" : u.pkg + ".");
+        if (t instanceof ClassTree ct) {
+          register(u, ct, u.pkg.isEmpty() ? "" : u.pkg + ".", vis(ct.getModifiers(), null) < 3);
+        }
       }
     }
     for (ClassInfo ci : classes.values()) computeCtors(ci);
+    computeEmission();
   }
 
-  void register(Unit u, ClassTree ct, String prefix) {
+  void register(Unit u, ClassTree ct, String prefix, boolean hidden) {
     ClassInfo ci = new ClassInfo();
     ci.fqn = prefix + ct.getSimpleName();
     ci.unit = u;
     ci.tree = ct;
+    ci.hidden = hidden;
     classes.put(ci.fqn, ci);
     for (Tree m : ct.getMembers()) {
-      if (m instanceof ClassTree nested) register(u, nested, ci.fqn + ".");
+      if (m instanceof ClassTree nested) {
+        register(u, nested, ci.fqn + ".", hidden || vis(nested.getModifiers(), ct) < 2);
+      }
     }
   }
 
@@ -255,6 +264,10 @@ public final class StubGen {
   void computeCtors(ClassInfo ci) {
     ClassTree ct = ci.tree;
     if (interfaceLike(ct)) return;
+    if (ci.hidden && ct.getKind() != Tree.Kind.ENUM) {
+      ci.noArgAvailable = true; // stubbed as a synthetic package-private no-arg constructor
+      return;
+    }
     boolean anyCtor = false;
     for (Tree m : ct.getMembers()) {
       if (m instanceof MethodTree mt && isCtor(mt)) {
@@ -279,10 +292,8 @@ public final class StubGen {
     String scope = ctxFqn;
     while (scope != null && !scope.isEmpty()) {
       if (classes.containsKey(scope + "." + first)) return scope + "." + first + rest;
-      ClassInfo sci = classes.get(scope);
-      if (sci != null) {
-        // inherited member types of the current scope are rare; ignore
-      }
+      String inherited = inheritedMember(scope, first, 0);
+      if (inherited != null) return inherited + rest;
       int dot = scope.lastIndexOf('.');
       scope = dot < 0 ? null : scope.substring(0, dot);
       if (scope != null && !classes.containsKey(scope)) break;
@@ -296,6 +307,39 @@ public final class StubGen {
     } catch (Throwable ignored) {
     }
     return t; // assume already fully qualified
+  }
+
+  /** Finds member type {@code name} declared in a superclass/superinterface of {@code fqn}. */
+  String inheritedMember(String fqn, String name, int depth) {
+    ClassInfo ci = classes.get(fqn);
+    if (ci == null || depth > 8) return null;
+    List<Tree> supers = new ArrayList<>(ci.tree.getImplementsClause());
+    if (ci.tree.getExtendsClause() != null) supers.add(0, ci.tree.getExtendsClause());
+    String outer = fqn.contains(".") ? fqn.substring(0, fqn.lastIndexOf('.')) : "";
+    for (Tree st : supers) {
+      String text = slice(ci.unit, start(ci.unit, st), end(ci.unit, st));
+      String sup = resolveNoInherit(ci.unit, outer, text);
+      if (classes.containsKey(sup + "." + name)) return sup + "." + name;
+      String deeper = inheritedMember(sup, name, depth + 1);
+      if (deeper != null) return deeper;
+    }
+    return null;
+  }
+
+  String resolveNoInherit(Unit u, String ctxFqn, String type) {
+    String t = type.replaceAll("<.*>", "").replaceAll("\\[\\]", "").trim();
+    String first = t.contains(".") ? t.substring(0, t.indexOf('.')) : t;
+    String rest = t.contains(".") ? t.substring(t.indexOf('.')) : "";
+    String scope = ctxFqn;
+    while (scope != null && classes.containsKey(scope)) {
+      if (classes.containsKey(scope + "." + first)) return scope + "." + first + rest;
+      int dot = scope.lastIndexOf('.');
+      scope = dot < 0 ? null : scope.substring(0, dot);
+    }
+    if (u.singleImports.containsKey(first)) return u.singleImports.get(first) + rest;
+    String samePkg = (u.pkg.isEmpty() ? "" : u.pkg + ".") + first;
+    if (classes.containsKey(samePkg)) return samePkg + rest;
+    return t;
   }
 
   String defaultValue(String type) {
@@ -382,8 +426,9 @@ public final class StubGen {
   String emitUnit(Unit u) {
     StringBuilder body = new StringBuilder();
     for (Tree t : u.cu.getTypeDecls()) {
-      if (t instanceof ClassTree ct && vis(ct.getModifiers(), null) == 3) {
-        emitClass(u, ct, (u.pkg.isEmpty() ? "" : u.pkg + ".") + ct.getSimpleName(), body, "");
+      if (t instanceof ClassTree ct) {
+        ClassInfo ci = classes.get((u.pkg.isEmpty() ? "" : u.pkg + ".") + ct.getSimpleName());
+        if (ci.emit) emitClass(u, ct, ci, body, "");
       }
     }
     Set<String> tokens = new HashSet<>();
@@ -404,12 +449,108 @@ public final class StubGen {
     return out.toString();
   }
 
-  void emitClass(Unit u, ClassTree ct, String fqn, StringBuilder out, String ind) {
-    ClassInfo ci = classes.get(fqn);
-    int open = bodyOpen(u, ct);
-    out.append(ind).append(slice(u, start(u, ct), open)).append(" {\n");
+  /** Names of the types referenced by a class's extends/implements clauses (incl. type args). */
+  List<String> supertypeRefs(ClassInfo ci) {
+    List<String> refs = new ArrayList<>();
+    TreeScanner<Void, Void> sc = new TreeScanner<>() {
+      @Override
+      public Void visitIdentifier(IdentifierTree id, Void v) {
+        refs.add(id.getName().toString());
+        return null;
+      }
+
+      @Override
+      public Void visitMemberSelect(MemberSelectTree ms, Void v) {
+        refs.add(ms.toString());
+        return null;
+      }
+    };
+    if (ci.tree.getExtendsClause() != null) sc.scan(ci.tree.getExtendsClause(), null);
+    for (Tree t : ci.tree.getImplementsClause()) sc.scan(t, null);
+    return refs;
+  }
+
+  /**
+   * Decides which types are emitted: every accessible type, every package-private type that is
+   * (transitively) a supertype of an emitted type ("supertype role"), and the enclosing types of
+   * emitted types (as bare containers).
+   */
+  void computeEmission() {
+    Deque<ClassInfo> work = new ArrayDeque<>();
+    for (ClassInfo ci : classes.values()) {
+      if (!ci.hidden) {
+        ci.emit = true;
+        work.add(ci);
+      }
+    }
+    while (!work.isEmpty()) {
+      ClassInfo ci = work.poll();
+      String outer = ci.fqn.contains(".") ? ci.fqn.substring(0, ci.fqn.lastIndexOf('.')) : "";
+      for (String ref : supertypeRefs(ci)) {
+        ClassInfo t = classes.get(resolve(ci.unit, ci.fqn, ref));
+        if (t == null) t = classes.get(resolve(ci.unit, outer, ref));
+        if (t != null && t.hidden && !t.supertypeRole) {
+          t.supertypeRole = true;
+          t.emit = true;
+          work.add(t);
+        }
+      }
+    }
+    for (ClassInfo ci : new ArrayList<>(classes.values())) {
+      if (!ci.emit) continue;
+      String f = ci.fqn;
+      while (f.contains(".")) {
+        f = f.substring(0, f.lastIndexOf('.'));
+        ClassInfo o = classes.get(f);
+        if (o == null) break;
+        o.emit = true;
+      }
+    }
+  }
+
+  /** Header text "modifiers kind Name<T>" without the extends/implements clauses. */
+  String bareHeader(Unit u, ClassTree ct) {
+    String head = slice(u, start(u, ct), bodyOpen(u, ct));
+    String kind = switch (ct.getKind()) {
+      case INTERFACE -> "interface";
+      case ENUM -> "enum";
+      case ANNOTATION_TYPE -> "@interface";
+      default -> "class";
+    };
+    Matcher m = Pattern.compile("(^|\\s)" + Pattern.quote(kind) + "\\s+" + ct.getSimpleName() + "\\b").matcher(head);
+    if (!m.find()) throw new IllegalStateException("header? " + head);
+    int i = m.end();
+    if (i < head.length() && head.substring(i).trim().startsWith("<")) {
+      int depth = 0;
+      for (int j = head.indexOf('<', i); j < head.length(); j++) {
+        char c = head.charAt(j);
+        if (c == '<') depth++;
+        if (c == '>' && --depth == 0) {
+          i = j + 1;
+          break;
+        }
+      }
+    }
+    return head.substring(0, i);
+  }
+
+  void emitClass(Unit u, ClassTree ct, ClassInfo ci, StringBuilder out, String ind) {
+    boolean containerOnly = ci.hidden && !ci.supertypeRole;
+    String header;
+    if (containerOnly) {
+      header = bareHeader(u, ct);
+    } else {
+      header = slice(u, start(u, ct), bodyOpen(u, ct));
+      if (ci.hidden && ct.getKind() == Tree.Kind.CLASS) {
+        // Methods of hidden supertypes are only partially kept; abstract avoids "must implement".
+        header = header.replaceFirst("\\bfinal\\s+", "");
+        if (!header.matches("(^|.*\\s)abstract\\s.*")) {
+          header = header.replaceFirst("(^|\\s)class\\s", "$1abstract class ");
+        }
+      }
+    }
+    out.append(ind).append(header).append(" {\n");
     String in = ind + "  ";
-    boolean iface = interfaceLike(ct);
     boolean isEnum = ct.getKind() == Tree.Kind.ENUM;
     if (isEnum) {
       List<String> consts = new ArrayList<>();
@@ -424,7 +565,7 @@ public final class StubGen {
             }
             if (nc.getClassBody() != null) {
               StringBuilder cb = new StringBuilder();
-              emitMembers(u, nc.getClassBody(), fqn, cb, in + "  ", null);
+              emitMembers(u, nc.getClassBody(), ci.fqn, cb, in + "  ", null);
               c.append(" {\n").append(cb).append(in).append('}');
             }
           }
@@ -433,28 +574,38 @@ public final class StubGen {
       }
       out.append(String.join(",\n", consts)).append(";\n");
     }
-    emitMembers(u, ct, fqn, out, in, ci);
+    emitMembers(u, ct, ci.fqn, out, in, ci);
     out.append(ind).append("}\n");
   }
 
+  /**
+   * Accessible types keep their public/protected API. Hidden (package-private) types are only
+   * kept so public types compile: as bare containers of emitted nested types, or, when they are a
+   * supertype of an emitted type, with their public/protected methods and a synthetic no-arg
+   * constructor (no fields).
+   */
   void emitMembers(Unit u, ClassTree ct, String fqn, StringBuilder out, String in, ClassInfo ci) {
     boolean iface = interfaceLike(ct);
     boolean isEnum = ct.getKind() == Tree.Kind.ENUM;
+    boolean hidden = ci != null && ci.hidden;
+    boolean containerOnly = hidden && !ci.supertypeRole;
     boolean hasExplicitCtor = false;
     boolean emittedCtor = false;
     for (Tree m : ct.getMembers()) {
       if (m instanceof MethodTree mt && isCtor(mt)) hasExplicitCtor = true;
     }
-    String superCall = ci == null ? "" : superCall(ci);
+    String superCall = ci == null || containerOnly ? "" : superCall(ci);
     for (Tree m : ct.getMembers()) {
       if (m instanceof ClassTree nested) {
-        if (vis(nested.getModifiers(), ct) >= 2) emitClass(u, nested, fqn + "." + nested.getSimpleName(), out, in);
+        ClassInfo nci = classes.get(fqn + "." + nested.getSimpleName());
+        if (nci != null && nci.emit) emitClass(u, nested, nci, out, in);
       } else if (m instanceof VariableTree v) {
-        if (isEnumConstant(v)) continue;
+        if (isEnumConstant(v) || hidden) continue;
         emitField(u, ct, v, out, in, hasExplicitCtor);
       } else if (m instanceof MethodTree mt) {
+        if (containerOnly) continue;
         if (isCtor(mt)) {
-          if (isEnum || vis(mt.getModifiers(), ct) >= 2) {
+          if (!hidden && (isEnum || vis(mt.getModifiers(), ct) >= 2)) {
             emittedCtor = true;
             String head = slice(u, start(u, mt), start(u, mt.getBody()));
             out.append(in).append(head).append(" { ").append(isEnum ? "" : superCall).append(THROW).append(" }\n");
@@ -472,7 +623,7 @@ public final class StubGen {
         }
       }
     }
-    if (ci != null && !iface && hasExplicitCtor && !emittedCtor) {
+    if (ci != null && !iface && !containerOnly && hasExplicitCtor && !emittedCtor) {
       // Only private/package constructors in the original: keep the type non-instantiable from
       // other packages while letting same-package stub subclasses compile.
       out.append(in).append(ct.getSimpleName()).append("() { ").append(superCall).append(THROW).append(" }\n");
@@ -485,8 +636,9 @@ public final class StubGen {
     boolean isStatic = iface || f.contains(Modifier.STATIC);
     boolean isFinal = iface || f.contains(Modifier.FINAL);
     ExpressionTree init = v.getInitializer();
-    boolean constant = init != null && isStatic && isFinal && constantLooking(init);
     int vis = vis(v.getModifiers(), ct);
+    boolean constant = init != null && isStatic && isFinal && constantLooking(init)
+        && (vis >= 2 || literalOnly(init));
     if (vis < 2 && !constant) return;
     String typeText = slice(u, start(u, v.getType()), end(u, v.getType()));
     String head;
@@ -507,9 +659,18 @@ public final class StubGen {
     }
   }
 
+  static boolean literalOnly(ExpressionTree e) {
+    if (e instanceof LiteralTree) return true;
+    if (e instanceof ParenthesizedTree p) return literalOnly(p.getExpression());
+    if (e instanceof UnaryTree un) return literalOnly(un.getExpression());
+    if (e instanceof BinaryTree b) return literalOnly(b.getLeftOperand()) && literalOnly(b.getRightOperand());
+    if (e instanceof TypeCastTree tc) return literalOnly(tc.getExpression());
+    return false;
+  }
+
   static boolean constantLooking(ExpressionTree e) {
     if (e instanceof LiteralTree) return true;
-    if (e instanceof IdentifierTree) return true;
+    if (e instanceof IdentifierTree id) return !id.getName().contentEquals("R");
     if (e instanceof MemberSelectTree ms) return constantLooking(ms.getExpression());
     if (e instanceof ParenthesizedTree p) return constantLooking(p.getExpression());
     if (e instanceof UnaryTree un) return constantLooking(un.getExpression());

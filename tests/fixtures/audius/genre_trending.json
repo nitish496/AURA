@@ -1,0 +1,387 @@
+{
+ "data": [
+  {
+   "artwork": {
+    "150x150": "https://creatornode2.audius.co/content/bafyartgh6lk/150x150.jpg",
+    "480x480": "https://creatornode2.audius.co/content/bafyartgh6lk/480x480.jpg",
+    "1000x1000": "https://creatornode2.audius.co/content/bafyartgh6lk/1000x1000.jpg",
+    "mirrors": [
+     "https://creatornode3.audius.co",
+     "https://audius-content-12.cultur3stake.com"
+    ]
+   },
+   "description": "Recorded on a night ferry.",
+   "genre": "Electronic",
+   "id": "Gh6Lk",
+   "track_cid": "baeaaaiqseagh6lkgh6lkgh6lk",
+   "preview_cid": null,
+   "orig_file_cid": "baeaaaiqsebgh6lkgh6lkgh6lk",
+   "orig_filename": "Glasshouse.wav",
+   "is_original_available": false,
+   "mood": "Melancholy",
+   "release_date": "2025-03-14T00:00:00Z",
+   "remix_of": {
+    "tracks": null
+   },
+   "repost_count": 37,
+   "favorite_count": 211,
+   "comment_count": 4,
+   "tags": "ambient,night,ferry",
+   "title": "Glasshouse",
+   "user": {
+    "album_count": 1,
+    "artist_pick_track_id": null,
+    "bio": "Field recordings and slow synths.",
+    "cover_photo": {
+     "640x": "https://creatornode2.audius.co/content/coverPd8xQ/640x.jpg",
+     "2000x": "https://creatornode2.audius.co/content/coverPd8xQ/2000x.jpg"
+    },
+    "followee_count": 52,
+    "follower_count": 640,
+    "does_follow_current_user": false,
+    "handle": "adanorth",
+    "id": "Pd8xQ",
+    "is_verified": false,
+    "twitter_handle": null,
+    "instagram_handle": null,
+    "tiktok_handle": null,
+    "verified_with_twitter": false,
+    "verified_with_instagram": false,
+    "verified_with_tiktok": false,
+    "website": "",
+    "donation": "",
+    "location": "Lisbon, Portugal",
+    "name": "Ada North",
+    "playlist_count": 2,
+    "profile_picture": {
+     "150x150": "https://creatornode2.audius.co/content/bafypicpd8xq/150x150.jpg",
+     "480x480": "https://creatornode2.audius.co/content/bafypicpd8xq/480x480.jpg",
+     "1000x1000": "https://creatornode2.audius.co/content/bafypicpd8xq/1000x1000.jpg",
+     "mirrors": [
+      "https://creatornode3.audius.co",
+      "https://audius-content-12.cultur3stake.com"
+     ]
+    },
+    "repost_count": 7,
+    "track_count": 14,
+    "is_deactivated": false,
+    "is_available": true,
+    "erc_wallet": "0x1111111111111111111111111111111111111111",
+    "spl_wallet": "99999999999999999999999999999999999999999999",
+    "spl_usdc_payout_wallet": null,
+    "supporter_count": 0,
+    "supporting_count": 0,
+    "total_audio_balance": 0,
+    "wallet": "0x1111111111111111111111111111111111111111"
+   },
+   "duration": 176,
+   "is_downloadable": false,
+   "play_count": 7004,
+   "permalink": "/adanorth/glasshouse",
+   "is_streamable": true,
+   "ddex_app": null,
+   "playlists_containing_track": [],
+   "pinned_comment_id": null,
+   "album_backlink": null,
+   "access": {
+    "stream": true,
+    "download": false
+   },
+   "is_stream_gated": false,
+   "stream_conditions": null,
+   "is_download_gated": false,
+   "download_conditions": null,
+   "is_delete": false,
+   "is_unlisted": false,
+   "is_available": true
+  },
+  {
+   "artwork": {
+    "150x150": "https://creatornode2.audius.co/content/bafyartlb9ey/150x150.jpg",
+    "480x480": "https://creatornode2.audius.co/content/bafyartlb9ey/480x480.jpg",
+    "1000x1000": "https://creatornode2.audius.co/content/bafyartlb9ey/1000x1000.jpg",
+    "mirrors": [
+     "https://creatornode3.audius.co",
+     "https://audius-content-12.cultur3stake.com"
+    ]
+   },
+   "description": "Recorded on a night ferry.",
+   "genre": "Electronic",
+   "id": "Lb9Ey",
+   "track_cid": "baeaaaiqsealb9eylb9eylb9ey",
+   "preview_cid": null,
+   "orig_file_cid": "baeaaaiqseblb9eylb9eylb9ey",
+   "orig_filename": "Low Tide Signals.wav",
+   "is_original_available": false,
+   "mood": "Peaceful",
+   "release_date": "2025-03-14T00:00:00Z",
+   "remix_of": {
+    "tracks": null
+   },
+   "repost_count": 37,
+   "favorite_count": 211,
+   "comment_count": 4,
+   "tags": "ambient,night,ferry",
+   "title": "Low Tide Signals",
+   "user": {
+    "album_count": 1,
+    "artist_pick_track_id": null,
+    "bio": "Field recordings and slow synths.",
+    "cover_photo": {
+     "640x": "https://creatornode2.audius.co/content/covernlGNe/640x.jpg",
+     "2000x": "https://creatornode2.audius.co/content/covernlGNe/2000x.jpg"
+    },
+    "followee_count": 52,
+    "follower_count": 11141,
+    "does_follow_current_user": false,
+    "handle": "marlowfields",
+    "id": "nlGNe",
+    "is_verified": true,
+    "twitter_handle": null,
+    "instagram_handle": null,
+    "tiktok_handle": null,
+    "verified_with_twitter": false,
+    "verified_with_instagram": false,
+    "verified_with_tiktok": false,
+    "website": "",
+    "donation": "",
+    "location": "Lisbon, Portugal",
+    "name": "Marlow Fields",
+    "playlist_count": 2,
+    "profile_picture": {
+     "150x150": "https://creatornode2.audius.co/content/bafypicnlgne/150x150.jpg",
+     "480x480": "https://creatornode2.audius.co/content/bafypicnlgne/480x480.jpg",
+     "1000x1000": "https://creatornode2.audius.co/content/bafypicnlgne/1000x1000.jpg",
+     "mirrors": [
+      "https://creatornode3.audius.co",
+      "https://audius-content-12.cultur3stake.com"
+     ]
+    },
+    "repost_count": 7,
+    "track_count": 14,
+    "is_deactivated": false,
+    "is_available": true,
+    "erc_wallet": "0x1111111111111111111111111111111111111111",
+    "spl_wallet": "99999999999999999999999999999999999999999999",
+    "spl_usdc_payout_wallet": null,
+    "supporter_count": 0,
+    "supporting_count": 0,
+    "total_audio_balance": 0,
+    "wallet": "0x1111111111111111111111111111111111111111"
+   },
+   "duration": 213,
+   "is_downloadable": false,
+   "play_count": 48211,
+   "permalink": "/marlowfields/low-tide-signals",
+   "is_streamable": true,
+   "ddex_app": null,
+   "playlists_containing_track": [],
+   "pinned_comment_id": null,
+   "album_backlink": null,
+   "access": {
+    "stream": true,
+    "download": false
+   },
+   "is_stream_gated": false,
+   "stream_conditions": null,
+   "is_download_gated": false,
+   "download_conditions": null,
+   "is_delete": false,
+   "is_unlisted": false,
+   "is_available": true
+  },
+  {
+   "artwork": {
+    "150x150": "https://creatornode2.audius.co/content/bafyartov8bm/150x150.jpg",
+    "480x480": "https://creatornode2.audius.co/content/bafyartov8bm/480x480.jpg",
+    "1000x1000": "https://creatornode2.audius.co/content/bafyartov8bm/1000x1000.jpg",
+    "mirrors": [
+     "https://creatornode3.audius.co",
+     "https://audius-content-12.cultur3stake.com"
+    ]
+   },
+   "description": "Recorded on a night ferry.",
+   "genre": "Lo-Fi",
+   "id": "Ov8Bm",
+   "track_cid": "baeaaaiqseaov8bmov8bmov8bm",
+   "preview_cid": null,
+   "orig_file_cid": "baeaaaiqsebov8bmov8bmov8bm",
+   "orig_filename": "Overpass Bloom.wav",
+   "is_original_available": false,
+   "mood": "Peaceful",
+   "release_date": "2025-03-14T00:00:00Z",
+   "remix_of": {
+    "tracks": null
+   },
+   "repost_count": 37,
+   "favorite_count": 211,
+   "comment_count": 4,
+   "tags": "ambient,night,ferry",
+   "title": "Overpass Bloom",
+   "user": {
+    "album_count": 1,
+    "artist_pick_track_id": null,
+    "bio": "Field recordings and slow synths.",
+    "cover_photo": {
+     "640x": "https://creatornode2.audius.co/content/covereAZl3/640x.jpg",
+     "2000x": "https://creatornode2.audius.co/content/covereAZl3/2000x.jpg"
+    },
+    "followee_count": 52,
+    "follower_count": 2380,
+    "does_follow_current_user": false,
+    "handle": "juniperstatic",
+    "id": "eAZl3",
+    "is_verified": false,
+    "twitter_handle": null,
+    "instagram_handle": null,
+    "tiktok_handle": null,
+    "verified_with_twitter": false,
+    "verified_with_instagram": false,
+    "verified_with_tiktok": false,
+    "website": "",
+    "donation": "",
+    "location": "Lisbon, Portugal",
+    "name": "Juniper Static",
+    "playlist_count": 2,
+    "profile_picture": {
+     "150x150": "https://creatornode2.audius.co/content/bafypiceazl3/150x150.jpg",
+     "480x480": "https://creatornode2.audius.co/content/bafypiceazl3/480x480.jpg",
+     "1000x1000": "https://creatornode2.audius.co/content/bafypiceazl3/1000x1000.jpg",
+     "mirrors": [
+      "https://creatornode3.audius.co",
+      "https://audius-content-12.cultur3stake.com"
+     ]
+    },
+    "repost_count": 7,
+    "track_count": 14,
+    "is_deactivated": false,
+    "is_available": true,
+    "erc_wallet": "0x1111111111111111111111111111111111111111",
+    "spl_wallet": "99999999999999999999999999999999999999999999",
+    "spl_usdc_payout_wallet": null,
+    "supporter_count": 0,
+    "supporting_count": 0,
+    "total_audio_balance": 0,
+    "wallet": "0x1111111111111111111111111111111111111111"
+   },
+   "duration": 224,
+   "is_downloadable": false,
+   "play_count": 5320,
+   "permalink": "/juniperstatic/overpass-bloom",
+   "is_streamable": true,
+   "ddex_app": null,
+   "playlists_containing_track": [],
+   "pinned_comment_id": null,
+   "album_backlink": null,
+   "access": {
+    "stream": true,
+    "download": false
+   },
+   "is_stream_gated": false,
+   "stream_conditions": null,
+   "is_download_gated": false,
+   "download_conditions": null,
+   "is_delete": false,
+   "is_unlisted": false,
+   "is_available": true
+  },
+  {
+   "artwork": {
+    "150x150": "https://creatornode2.audius.co/content/bafyart7ep5n/150x150.jpg",
+    "480x480": "https://creatornode2.audius.co/content/bafyart7ep5n/480x480.jpg",
+    "mirrors": [
+     "https://creatornode3.audius.co",
+     "https://audius-content-12.cultur3stake.com"
+    ]
+   },
+   "description": "Recorded on a night ferry.",
+   "genre": "Lo-Fi",
+   "id": "7eP5n",
+   "track_cid": "baeaaaiqsea7ep5n7ep5n7ep5n",
+   "preview_cid": null,
+   "orig_file_cid": "baeaaaiqseb7ep5n7ep5n7ep5n",
+   "orig_filename": "Paper Lanterns.wav",
+   "is_original_available": false,
+   "mood": "Romantic",
+   "release_date": "2025-03-14T00:00:00Z",
+   "remix_of": {
+    "tracks": null
+   },
+   "repost_count": 37,
+   "favorite_count": 211,
+   "comment_count": 4,
+   "tags": "ambient,night,ferry",
+   "title": "Paper Lanterns",
+   "user": {
+    "album_count": 1,
+    "artist_pick_track_id": null,
+    "bio": "Field recordings and slow synths.",
+    "cover_photo": {
+     "640x": "https://creatornode2.audius.co/content/covereAZl3/640x.jpg",
+     "2000x": "https://creatornode2.audius.co/content/covereAZl3/2000x.jpg"
+    },
+    "followee_count": 52,
+    "follower_count": 2380,
+    "does_follow_current_user": false,
+    "handle": "juniperstatic",
+    "id": "eAZl3",
+    "is_verified": false,
+    "twitter_handle": null,
+    "instagram_handle": null,
+    "tiktok_handle": null,
+    "verified_with_twitter": false,
+    "verified_with_instagram": false,
+    "verified_with_tiktok": false,
+    "website": "",
+    "donation": "",
+    "location": "Lisbon, Portugal",
+    "name": "Juniper Static",
+    "playlist_count": 2,
+    "profile_picture": {
+     "150x150": "https://creatornode2.audius.co/content/bafypiceazl3/150x150.jpg",
+     "480x480": "https://creatornode2.audius.co/content/bafypiceazl3/480x480.jpg",
+     "1000x1000": "https://creatornode2.audius.co/content/bafypiceazl3/1000x1000.jpg",
+     "mirrors": [
+      "https://creatornode3.audius.co",
+      "https://audius-content-12.cultur3stake.com"
+     ]
+    },
+    "repost_count": 7,
+    "track_count": 14,
+    "is_deactivated": false,
+    "is_available": true,
+    "erc_wallet": "0x1111111111111111111111111111111111111111",
+    "spl_wallet": "99999999999999999999999999999999999999999999",
+    "spl_usdc_payout_wallet": null,
+    "supporter_count": 0,
+    "supporting_count": 0,
+    "total_audio_balance": 0,
+    "wallet": "0x1111111111111111111111111111111111111111"
+   },
+   "duration": 201,
+   "is_downloadable": false,
+   "play_count": 9120,
+   "permalink": "/juniperstatic/paper-lanterns",
+   "is_streamable": true,
+   "ddex_app": null,
+   "playlists_containing_track": [],
+   "pinned_comment_id": null,
+   "album_backlink": {
+    "playlist_id": 88231,
+    "playlist_name": "Night Ferries",
+    "permalink": "/juniperstatic/album/night-ferries-88231"
+   },
+   "access": {
+    "stream": true,
+    "download": false
+   },
+   "is_stream_gated": false,
+   "stream_conditions": null,
+   "is_download_gated": false,
+   "download_conditions": null,
+   "is_delete": false,
+   "is_unlisted": false,
+   "is_available": true
+  }
+ ]
+}

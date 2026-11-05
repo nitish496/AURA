@@ -48,7 +48,6 @@ androidx.media3.common.Tracks androidx.media3.common.VideoSize
 androidx.media3.common.audio.AudioProcessor androidx.media3.common.audio.BaseAudioProcessor
 androidx.media3.common.audio.ChannelMixingAudioProcessor
 androidx.media3.common.audio.ChannelMixingMatrix androidx.media3.common.audio.SonicAudioProcessor
-androidx.media3.common.audio.AudioManagerCompat androidx.media3.common.audio.AudioFocusRequestCompat
 androidx.media3.common.text.Cue androidx.media3.common.text.CueGroup
 androidx.media3.common.util.Assertions androidx.media3.common.util.BitmapLoader
 androidx.media3.common.util.Clock androidx.media3.common.util.Consumer
@@ -88,6 +87,11 @@ androidx.media3.exoplayer.source.MediaSource androidx.media3.exoplayer.source.Pr
 androidx.media3.exoplayer.source.ShuffleOrder
 androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 androidx.media3.exoplayer.upstream.DefaultBandwidthMeter androidx.media3.exoplayer.util.EventLogger
+androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
+androidx.media3.extractor.DefaultExtractorsFactory androidx.media3.extractor.mp3.Mp3Extractor
+androidx.media3.session.MediaConstants
+androidx.media3.extractor.metadata.id3.TextInformationFrame androidx.media3.extractor.metadata.id3.InternalFrame
+androidx.media3.extractor.metadata.vorbis.VorbisComment androidx.media3.extractor.metadata.flac.VorbisComment
 androidx.media3.session.CacheBitmapLoader androidx.media3.session.CommandButton
 androidx.media3.session.DefaultMediaNotificationProvider androidx.media3.session.LibraryResult
 androidx.media3.session.MediaBrowser androidx.media3.session.MediaController
@@ -188,6 +192,15 @@ def compile_stubs(cp):
 ERR = re.compile(r"^(?P<file>[^\n]+?\.java):(?P<line>\d+): error: (?P<msg>.*)$", re.M)
 
 
+def file_package(path):
+    rel = os.path.relpath(os.path.abspath(path), ROOT)
+    for base in (OUT, ANNOT, PLACEHOLDERS):
+        b = os.path.relpath(base, ROOT)
+        if rel.startswith(b + os.sep):
+            return os.path.dirname(os.path.relpath(rel, b)).replace(os.sep, ".")
+    return ""
+
+
 def wanted_from_errors(stderr):
     want = set()
     blocks = re.split(r"(?m)^(?=[^\s][^\n]*\.java:\d+: error:)", stderr)
@@ -196,26 +209,30 @@ def wanted_from_errors(stderr):
         if not m:
             continue
         msg = m.group("msg")
-        sym = re.search(r"symbol:\s+(?:class|interface|enum)\s+([\w$]+)", b)
-        loc = re.search(r"location:\s+(package|class|interface|enum|@interface)\s+([\w.$]+)", b)
         imp = re.search(r"^\s*import\s+(static\s+)?([\w.]+)\s*;", b, re.M)
-        if "does not exist" in msg and imp:
+        if imp:
             t = top_level(imp.group(2))
             if t:
                 want.add(t)
             continue
-        if sym and loc:
-            name = sym.group(1)
-            kind, where = loc.groups()
-            if kind == "package":
-                want.add(where + "." + name)
+        pkgmiss = re.match(r"package ([\w.]+) does not exist", msg)
+        if pkgmiss:
+            name = pkgmiss.group(1)
+            if name.split(".")[0][:1].isupper():  # Outer.Inner where Outer is a same-package class
+                want.add(file_package(m.group("file")) + "." + name.split(".")[0])
             else:
-                pkg = ".".join(p for p in where.split(".") if not p[:1].isupper())
-                want.add(pkg + "." + name)
-        elif imp:
-            t = top_level(imp.group(2))
-            if t:
-                want.add(t)
+                t = top_level(name + ".X")
+            continue
+        sym = re.search(r"symbol:\s+(?:class|interface|enum)\s+([\w$]+)", b)
+        if not sym:
+            var = re.search(r"symbol:\s+variable\s+([A-Z][\w$]*)", b)
+            if var and var.group(1) != "R":
+                sym = var
+        loc = re.search(r"location:\s+package\s+([\w.]+)", b)
+        if sym and loc:
+            want.add(loc.group(1) + "." + sym.group(1))
+        elif sym:
+            want.add(file_package(m.group("file")) + "." + sym.group(1))
     return want
 
 

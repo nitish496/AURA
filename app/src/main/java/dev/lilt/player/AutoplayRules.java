@@ -15,8 +15,9 @@ public final class AutoplayRules {
             this.moods=Collections.unmodifiableSet(MoodRules.normalize(moods));
         }
     }
+    private static final java.util.regex.Pattern WHITESPACE=java.util.regex.Pattern.compile("\\s+");
     private static String normalize(String text) {
-        return text==null?"":Normalizer.normalize(text,Normalizer.Form.NFKC).trim().replaceAll("\\s+"," ").toLowerCase(Locale.ROOT);
+        return text==null?"":WHITESPACE.matcher(Normalizer.normalize(text,Normalizer.Form.NFKC).trim()).replaceAll(" ").toLowerCase(Locale.ROOT);
     }
     private static int relation(Song song,Song seed) {
         if(seed==null)return 0;

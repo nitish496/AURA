@@ -19,7 +19,14 @@ jobs:
         with:
           packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
       - uses: gradle/actions/setup-gradle@v4
+      - name: Cache logic-test jars (android-all, guava)
+        uses: actions/cache@v4
+        with:
+          path: tools/cache
+          key: aura-jars-${{ hashFiles('scripts/lib/deps.sh') }}
       - name: Logic tests
+        env:
+          AURA_REQUIRE_ANDROID_TESTS: '1'
         run: scripts/run-logic-tests.sh
       - name: Assemble and lint
         run: ./gradlew --no-daemon --stacktrace :app:assembleDebug :app:lintDebug

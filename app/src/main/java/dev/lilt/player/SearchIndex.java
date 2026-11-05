@@ -2,9 +2,13 @@ package dev.lilt.player;
 
 import java.text.Normalizer;
 import java.util.*;
+import java.util.regex.Pattern;
 
 /** Immutable local metadata index. Scores never use playback state or network data. */
 public final class SearchIndex {
+    // Compiled once: normalize() runs for every field at index time and on every keystroke.
+    private static final Pattern NON_WORD=Pattern.compile("[^\\p{L}\\p{N}\\p{M}]+");
+    private static final Pattern SPACES=Pattern.compile("\\s+");
     private final List<Entry> entries;
     public SearchIndex(List<String[]> metadata) {
         List<Entry> built=new ArrayList<>();
@@ -19,7 +23,7 @@ public final class SearchIndex {
             if(!mark)latin=Character.UnicodeScript.of(cp)==Character.UnicodeScript.LATIN;
             if(!mark||!latin)folded.appendCodePoint(cp);
         }
-        return folded.toString().toLowerCase(Locale.ROOT).replaceAll("[^\\p{L}\\p{N}\\p{M}]+"," ").trim().replaceAll("\\s+"," ");
+        return SPACES.matcher(NON_WORD.matcher(folded.toString().toLowerCase(Locale.ROOT)).replaceAll(" ").trim()).replaceAll(" ");
     }
     public List<String> search(String query) {
         String q=normalize(query);List<Hit> hits=new ArrayList<>();
@@ -30,10 +34,10 @@ public final class SearchIndex {
         hits.sort(Comparator.comparingInt(h->h.score));List<String> ids=new ArrayList<>();for(Hit h:hits)ids.add(h.id);return ids;
     }
     private static int score(Entry e,String q,String[] tokens){
-        int title=field(e.title,q,tokens);if(title<1000)return title;
-        int artist=field(e.artist,q,tokens);int album=field(e.album,q,tokens);
+        int title=field(e.title,e.titleWords,q,tokens);if(title<1000)return title;
+        int artist=field(e.artist,e.artistWords,q,tokens);int album=field(e.album,e.albumWords,q,tokens);
         if(artist<1000||album<1000)return Math.min(100+artist,200+album);
-        if(allTokens(e.all,tokens))return 350;
+        if(allTokens(e.allWords,tokens))return 350;
         // One edit only, words of at least five characters, and only single-word queries.
         // Exact metadata always outranks this fallback; short vague queries stay literal.
         if(tokens.length==1&&q.length()>=5&&q.length()<=40){
@@ -41,12 +45,13 @@ public final class SearchIndex {
         }
         return 1000;
     }
-    private static int field(String value,String q,String[] tokens){
+    private static int field(String value,String[] words,String q,String[] tokens){
         if(value.equals(q))return 0;if(value.startsWith(q))return 10;
-        if(allTokens(value,tokens))return 20;if(value.contains(q))return 30;return 1000;
+        if(allTokens(words,tokens))return 20;if(value.contains(q))return 30;return 1000;
     }
-    private static boolean allTokens(String value,String[] tokens){
-        String[] words=value.split(" ");for(String token:tokens){boolean found=false;
+    /** Every token prefixes some word. Word arrays are split once per entry, not per query. */
+    private static boolean allTokens(String[] words,String[] tokens){
+        for(String token:tokens){boolean found=false;
             for(String word:words)if(word.startsWith(token)){found=true;break;}if(!found)return false;
         }return true;
     }
@@ -58,8 +63,9 @@ public final class SearchIndex {
         }return edits+(i<a.length()||j<b.length()?1:0)<=1;
     }
     private static final class Entry {
-        final String id,title,artist,album,all;final String[] titleWords;
-        Entry(String id,String title,String artist,String album){this.id=id;this.title=normalize(title);this.artist=normalize(artist);this.album=normalize(album);all=this.title+" "+this.artist+" "+this.album;titleWords=this.title.split(" ");}
+        final String id,title,artist,album;final String[] titleWords,artistWords,albumWords,allWords;
+        Entry(String id,String title,String artist,String album){this.id=id;this.title=normalize(title);this.artist=normalize(artist);this.album=normalize(album);
+            titleWords=this.title.split(" ");artistWords=this.artist.split(" ");albumWords=this.album.split(" ");allWords=(this.title+" "+this.artist+" "+this.album).split(" ");}
     }
     private static final class Hit {final String id;final int score;Hit(String id,int score){this.id=id;this.score=score;}}
 }

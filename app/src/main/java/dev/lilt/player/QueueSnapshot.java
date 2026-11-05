@@ -22,7 +22,14 @@ public final class QueueSnapshot {
         this.index=entries.isEmpty()?0:Math.max(0,Math.min(index,entries.size()-1));
         this.position=Math.max(0,position);this.shuffle=shuffle;this.repeat=repeat>=0&&repeat<=2?repeat:0;
     }
-    private static String clean(String value) { return value==null?"":value.substring(0,Math.min(value.length(),8192)); }
+    static final int MAX_FIELD_CHARS=8192; // <= 3 bytes/char in modified UTF-8: always under writeUTF's 65535
+    private static String clean(String value) {
+        if(value==null)return "";
+        if(value.length()<=MAX_FIELD_CHARS)return value;
+        int end=MAX_FIELD_CHARS;
+        if(Character.isHighSurrogate(value.charAt(end-1)))end--; // never keep half an emoji
+        return value.substring(0,end);
+    }
     public byte[] encode() throws IOException {
         ByteArrayOutputStream bytes=new ByteArrayOutputStream();DataOutputStream out=new DataOutputStream(bytes);
         out.writeInt(MAGIC);out.writeInt(VERSION);out.writeInt(entries.size());out.writeInt(index);out.writeLong(position);out.writeBoolean(shuffle);out.writeInt(repeat);

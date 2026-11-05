@@ -1,0 +1,15 @@
+{
+ "data": [
+  "https://discoveryprovider.audius.co",
+  "https://discoveryprovider2.audius.co/",
+  "https://discoveryprovider3.audius.co",
+  "https://audius-discovery-1.altego.net",
+  "https://dn1.monophonic.digital",
+  "https://audius-dp.singapore.creatorseed.com",
+  "http://cleartext.example.net",
+  "https://discoveryprovider.audius.co",
+  "not a url",
+  "https://dn.example.org/v1/path",
+  42
+ ]
+}

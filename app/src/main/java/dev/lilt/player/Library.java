@@ -9,13 +9,21 @@ import org.json.*;
 import java.util.*;
 
 public final class Library {
+    /**
+     * Playable audio that is not a system sound: MediaStore flags files under Alarms/,
+     * Notifications/ and Ringtones/, which are not songs. NULL flags (very old rows) still count.
+     */
+    static final String AUDIO_SELECTION="duration > 0"
+            +" AND (is_alarm IS NULL OR is_alarm = 0)"
+            +" AND (is_notification IS NULL OR is_notification = 0)"
+            +" AND (is_ringtone IS NULL OR is_ringtone = 0)";
     private final Context context;
     public Library(Context context) { this.context=context.getApplicationContext(); }
     public List<Track> scan() {
         List<Track> tracks=new ArrayList<>();
         Uri collection=Build.VERSION.SDK_INT>=29 ? MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL) : MediaStore.Audio.Media.EXTERNAL_CONTENT_URI;
         String[] fields=Build.VERSION.SDK_INT>=30?new String[]{"_id","title","artist","album","duration","album_id","track","date_added","album_artist"}:new String[]{"_id","title","artist","album","duration","album_id","track","date_added"};
-        try(Cursor c=context.getContentResolver().query(collection,fields,"duration > 0",null,"title COLLATE NOCASE ASC")) {
+        try(Cursor c=context.getContentResolver().query(collection,fields,AUDIO_SELECTION,null,"title COLLATE NOCASE ASC")) {
             if(c!=null) while(c.moveToNext()) {
                 Uri uri=ContentUris.withAppendedId(collection,c.getLong(0));
                 tracks.add(new Track(uri.toString(),c.getString(1),c.getString(2),c.getString(3),uri,c.getLong(4),c.getLong(5),c.getInt(6),c.getLong(7),Build.VERSION.SDK_INT>=30?c.getString(8):c.getString(2)));

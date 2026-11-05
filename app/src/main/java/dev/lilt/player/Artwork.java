@@ -9,6 +9,9 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.LruCache;
 import android.widget.ImageView;
+import dev.lilt.player.stream.AudiusApi;
+import dev.lilt.player.stream.Http;
+import dev.lilt.player.stream.RemoteTrackStore;
 import java.io.*;
 import java.lang.ref.WeakReference;
 import java.util.*;
@@ -27,7 +30,9 @@ public final class Artwork {
     private static final LruCache<String,Boolean> actualCache=new LruCache<>(2048);
     public boolean isActual(ImageView view){return Boolean.TRUE.equals(actualViews.get(view));}
     public void loadActual(Uri mediaUri,Uri customUri,java.util.function.Consumer<Bitmap> callback){
-        if(closed)return;submit(()->{if(closed)return;Bitmap image=null;if(customUri!=null)image=source(customUri,"custom:"+customUri,true);if(image==null&&mediaUri!=null)image=source(mediaUri,"actual:"+mediaUri,false);
+        if(closed)return;
+        if(isRemote(mediaUri)||isRemote(customUri)){loadActualRemote(mediaUri,customUri,callback);return;}
+        submit(()->{if(closed)return;Bitmap image=null;if(customUri!=null)image=source(customUri,"custom:"+customUri,true);if(image==null&&mediaUri!=null)image=source(mediaUri,"actual:"+mediaUri,false);
             Bitmap ready=image==null?null:framed(image,DECODE_SIZE);main.post(()->{if(!closed)callback.accept(ready);});});
     }
     private static final LruCache<String,Bitmap> placeholders=new LruCache<String,Bitmap>(2*1024){@Override protected int sizeOf(String key,Bitmap b){return b.getByteCount()/1024;}};
@@ -37,7 +42,7 @@ public final class Artwork {
     private static volatile long lastPrune;
     public void logStats(){int pending;synchronized(requests){pending=requests.size();}android.util.Log.d("AuraArtwork",diagnostics()+" pending="+pending);}
     private static final java.util.concurrent.atomic.AtomicLong memoryHits=new java.util.concurrent.atomic.AtomicLong(),viewHits=new java.util.concurrent.atomic.AtomicLong(),diskHits=new java.util.concurrent.atomic.AtomicLong(),extractions=new java.util.concurrent.atomic.AtomicLong();
-    public static String diagnostics(){return "memoryHits="+memoryHits.get()+" viewHits="+viewHits.get()+" diskHits="+diskHits.get()+" extractions="+extractions.get()+" thumbnailKiB="+cache.size()+" largeKiB="+largeCache.size();}
+    public static String diagnostics(){return "memoryHits="+memoryHits.get()+" viewHits="+viewHits.get()+" diskHits="+diskHits.get()+" extractions="+extractions.get()+" downloads="+downloads.get()+" thumbnailKiB="+cache.size()+" largeKiB="+largeCache.size();}
     private int displaySize(ImageView view){int width=view.getWidth();if(width<=0&&view.getLayoutParams()!=null)width=view.getLayoutParams().width;return ArtworkSizing.bucket(width>0?width:256);}
     private LruCache<String,Bitmap> rendered(int size){return size>512?largeCache:cache;}
     public void prefetch(List<Track> tracks,int pixels){for(Track track:tracks.subList(0,Math.min(12,tracks.size()))){ImageView view=new ImageView(context);view.setLayoutParams(new android.view.ViewGroup.LayoutParams(pixels,pixels));load(view,track);}}
@@ -58,6 +63,7 @@ public final class Artwork {
     }
     public void load(ImageView view,Track track) {
         if(closed)return;
+        if(track.isRemote()){loadRemote(view,track);return;}
         Uri custom=library.artwork(track);int size=displaySize(view);String sourceIdentity=track.id+":"+track.uri+":"+track.dateAdded+":"+custom;String identity=sourceIdentity+":"+size;LruCache<String,Bitmap> rendered=rendered(size);
         if(identity.equals(view.getTag())&&view.getDrawable()!=null){viewHits.incrementAndGet();return;}
         view.setTag(identity);view.setContentDescription("Album cover for "+track.album);view.setClipToOutline(true);
@@ -181,5 +187,127 @@ public final class Artwork {
         options.inJustDecodeBounds=false;return BitmapFactory.decodeByteArray(bytes,0,bytes.length,options);
     }
     private String cacheName(String identity){try{byte[] digest=java.security.MessageDigest.getInstance("SHA-256").digest(identity.getBytes(java.nio.charset.StandardCharsets.UTF_8));StringBuilder name=new StringBuilder();for(byte b:digest)name.append(String.format(java.util.Locale.ROOT,"%02x",b&255));return name.toString();}catch(java.security.NoSuchAlgorithmException e){throw new IllegalStateException(e);}}
-    public void close(){closed=true;worker.shutdownNow();main.removeCallbacksAndMessages(null);synchronized(requests){requests.clear();}actualViews.clear();}
+    public void close(){closed=true;worker.shutdownNow();remoteWorker.shutdownNow();main.removeCallbacksAndMessages(null);synchronized(requests){requests.clear();}actualViews.clear();}
+
+    // ---- Remote (https) artwork for streamed tracks -------------------------------------------
+    // Same public API, caches, placeholder and request coalescing as local covers. Downloads run on
+    // their own small LIFO pool (newest requests are the visible ones) so network latency never
+    // delays local decodes. Lists fetch the 150/480 variant, the player the 1000x1000 original.
+    // Downloaded bytes are stored as-is in the shared cover disk cache (pruned with local covers).
+    // Failures are cached briefly (network) or for hours (404 / not an image); a failed view keeps
+    // its placeholder and is retried on the next load().
+    private static final class LifoQueue extends LinkedBlockingDeque<Runnable> {
+        private static final long serialVersionUID=1L;
+        @Override public boolean offer(Runnable task){return offerFirst(task);}
+    }
+    private final ThreadPoolExecutor remoteWorker=newRemoteWorker();
+    private static ThreadPoolExecutor newRemoteWorker(){
+        ThreadPoolExecutor pool=new ThreadPoolExecutor(4,4,30,TimeUnit.SECONDS,new LifoQueue(),task->{Thread thread=new Thread(task,"AuraRemoteArt");thread.setPriority(Thread.NORM_PRIORITY-1);return thread;});
+        pool.allowCoreThreadTimeOut(true);return pool;
+    }
+    private static final Http remoteHttp=new Http("AURA/2.0 (Android)",6000,10000,12*1024*1024);
+    private static final LruCache<String,Long> remoteFailures=new LruCache<>(512);
+    private static final Object[] remoteLocks=new Object[64];
+    static{for(int i=0;i<remoteLocks.length;i++)remoteLocks[i]=new Object();}
+    private static final java.util.concurrent.atomic.AtomicLong downloads=new java.util.concurrent.atomic.AtomicLong();
+    private static final long NETWORK_RETRY_MS=60_000,MISSING_RETRY_MS=6*60*60_000L;
+    private boolean submitRemote(Runnable task){if(closed)return false;try{remoteWorker.execute(task);return true;}catch(RejectedExecutionException ignored){return false;}}
+    private static boolean isRemote(Uri uri){return uri!=null&&("https".equalsIgnoreCase(uri.getScheme())||"http".equalsIgnoreCase(uri.getScheme()));}
+
+    private void loadRemote(ImageView view,Track track){
+        int size=displaySize(view);String url=track.artworkUrl(size);String identity=track.id+":"+url+":"+size;LruCache<String,Bitmap> rendered=rendered(size);
+        if(identity.equals(view.getTag())&&view.getDrawable()!=null){viewHits.incrementAndGet();return;}
+        view.setTag(identity);view.setContentDescription("Artwork for "+track.title);view.setClipToOutline(true);
+        GradientDrawable background=new GradientDrawable(GradientDrawable.Orientation.TL_BR,new int[]{DesignTokens.SURFACE,DesignTokens.SURFACE});background.setCornerRadius(DesignTokens.COVER_RADIUS*context.getResources().getDisplayMetrics().density);view.setBackground(background);
+        Bitmap found=rendered.get(identity);
+        if(found!=null){memoryHits.incrementAndGet();actualViews.put(view,true);view.setImageBitmap(found);return;}
+        actualViews.put(view,false);view.setImageBitmap(remotePlaceholder(track));
+        if(url==null)return; // No artwork exists: the placeholder is final.
+        synchronized(requests){
+            List<WeakReference<ImageView>> pending=requests.get(identity);
+            if(pending!=null){pending.add(new WeakReference<>(view));return;}
+            pending=new ArrayList<>();pending.add(new WeakReference<>(view));requests.put(identity,pending);
+        }
+        boolean accepted=submitRemote(()->{
+            if(closed||!stillWanted(identity))return;
+            Bitmap bitmap=remoteSource(url);Bitmap ready=null;
+            if(bitmap!=null&&!closed){ready=rendered.get(identity);if(ready==null){ready=framed(bitmap,size);rendered.put(identity,ready);}}
+            final Bitmap display=ready;
+            main.post(()->{
+                List<WeakReference<ImageView>> waiting;
+                synchronized(requests){waiting=requests.remove(identity);}
+                if(closed||waiting==null)return;
+                for(WeakReference<ImageView> reference:waiting){ImageView image=reference.get();if(image==null||!identity.equals(image.getTag()))continue;
+                    if(display!=null){actualViews.put(image,true);image.setImageBitmap(display);}else image.setTag(null);}
+            });
+        });
+        if(!accepted){synchronized(requests){requests.remove(identity);}view.setTag(null);}
+    }
+    /** Drops a queued download whose views were all recycled to other artwork (fast scrolling). */
+    private boolean stillWanted(String identity){
+        synchronized(requests){
+            List<WeakReference<ImageView>> pending=requests.get(identity);if(pending==null)return false;
+            for(WeakReference<ImageView> reference:pending){ImageView image=reference.get();if(image!=null&&identity.equals(image.getTag()))return true;}
+            requests.remove(identity);return false;
+        }
+    }
+    private Bitmap remotePlaceholder(Track track){
+        String label=Track.REMOTE_SINGLE.equals(track.album)?track.title:track.album;String initial=label.substring(0,label.offsetByCodePoints(0,1)).toUpperCase(Locale.ROOT);
+        String key="remote:"+initial;Bitmap fallback=placeholders.get(key);
+        if(fallback==null){int hue=Math.floorMod(initial.hashCode()*47,360);fallback=placeholder(initial,Color.HSVToColor(new float[]{hue,.08f,.30f}),Color.HSVToColor(new float[]{hue,.05f,.16f}));placeholders.put(key,fallback);}
+        return fallback;
+    }
+    private void loadActualRemote(Uri mediaUri,Uri customUri,java.util.function.Consumer<Bitmap> callback){
+        submitRemote(()->{if(closed)return;Bitmap image=null;
+            if(customUri!=null)image=isRemote(customUri)?remoteSource(remoteArtworkUrl(customUri)):source(customUri,"custom:"+customUri,true);
+            if(image==null&&mediaUri!=null)image=isRemote(mediaUri)?remoteSource(remoteArtworkUrl(mediaUri)):source(mediaUri,"actual:"+mediaUri,false);
+            Bitmap ready=image==null?null:framed(image,DECODE_SIZE);main.post(()->{if(!closed)callback.accept(ready);});});
+    }
+    /** An https image URL as-is; an Audius stream URL maps to its track's stored artwork (never decoded as media). */
+    private String remoteArtworkUrl(Uri uri){
+        String value=uri.toString();String trackId=AudiusApi.trackIdFromStreamUrl(value);
+        if(trackId==null)return value;
+        Track track=new RemoteTrackStore(context).get(trackId);
+        return track==null?null:track.artworkUrl;
+    }
+    /** Memory, then disk (original bytes), then network; coalesced per URL; failures cached. Worker thread only. */
+    private Bitmap remoteSource(String url){
+        if(url==null)return null;String key="remote:"+url;
+        synchronized(remoteLocks[Math.floorMod(key.hashCode(),remoteLocks.length)]){
+            if(closed)return null;
+            Bitmap cached=sources.get(key);if(cached!=null)return cached;
+            Long retryAt=remoteFailures.get(key);if(retryAt!=null&&retryAt>android.os.SystemClock.elapsedRealtime())return null;
+            File saved=new File(context.getCacheDir(),"cover-"+cacheName(key)+".png");
+            Bitmap bitmap=null;
+            if(saved.isFile()){BitmapFactory.Options options=remoteOptions(saved.getPath(),null);bitmap=options==null?null:BitmapFactory.decodeFile(saved.getPath(),options);
+                if(bitmap!=null){diskHits.incrementAndGet();saved.setLastModified(System.currentTimeMillis());}else saved.delete();}
+            if(bitmap==null){
+                byte[] bytes;
+                try{
+                    Http.Response response=remoteHttp.get(url,"image/*");
+                    if(!response.ok())throw new Http.StatusException(response.code,"artwork");
+                    bytes=response.body;
+                }catch(IOException failure){
+                    boolean permanent=failure instanceof Http.StatusException&&((Http.StatusException)failure).code>=400&&((Http.StatusException)failure).code<500&&((Http.StatusException)failure).code!=408&&((Http.StatusException)failure).code!=429;
+                    remoteFailures.put(key,android.os.SystemClock.elapsedRealtime()+(permanent?MISSING_RETRY_MS:NETWORK_RETRY_MS));return null;
+                }
+                downloads.incrementAndGet();
+                BitmapFactory.Options options=remoteOptions(null,bytes);bitmap=options==null?null:BitmapFactory.decodeByteArray(bytes,0,bytes.length,options);
+                if(bitmap==null){remoteFailures.put(key,android.os.SystemClock.elapsedRealtime()+MISSING_RETRY_MS);return null;}
+                if(!closed){File temporary=new File(saved.getPath()+"."+Thread.currentThread().getId()+".tmp");
+                    try(FileOutputStream out=new FileOutputStream(temporary)){out.write(bytes);}catch(IOException ignored){temporary.delete();temporary=null;}
+                    if(temporary!=null){if(temporary.renameTo(saved))pruneDisk();else temporary.delete();}}
+            }
+            if(!closed)sources.put(key,bitmap);
+            return bitmap;
+        }
+    }
+    /** Decode options keeping at least DECODE_SIZE pixels (a 1000x1000 cover stays sharp in the player). */
+    private static BitmapFactory.Options remoteOptions(String path,byte[] bytes){
+        BitmapFactory.Options options=new BitmapFactory.Options();options.inJustDecodeBounds=true;
+        if(path!=null)BitmapFactory.decodeFile(path,options);else BitmapFactory.decodeByteArray(bytes,0,bytes.length,options);
+        if(options.outWidth<=0||options.outHeight<=0)return null;
+        options.inSampleSize=1;while(Math.max(options.outWidth,options.outHeight)/(options.inSampleSize*2)>=DECODE_SIZE)options.inSampleSize*=2;
+        options.inJustDecodeBounds=false;return options;
+    }
 }

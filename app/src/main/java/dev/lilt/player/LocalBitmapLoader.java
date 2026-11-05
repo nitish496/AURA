@@ -5,19 +5,29 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.util.LruCache;
+import androidx.media3.common.C;
 import androidx.media3.common.util.BitmapLoader;
+import androidx.media3.datasource.DataSource;
+import androidx.media3.datasource.DataSpec;
 import com.google.common.util.concurrent.*;
+import dev.lilt.player.audio.MediaCache;
+import dev.lilt.player.audio.MediaIds;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-/** Bounded, coalesced local artwork delivery; System UI owns notification styling. */
+/**
+ * Bounded, coalesced artwork delivery for the media notification and system media controls.
+ * Device artwork comes from {@link Artwork}; catalogue (https) artwork is fetched through the
+ * shared media cache, so covers of cached songs also appear offline. System UI owns styling.
+ */
 @androidx.media3.common.util.UnstableApi
 public final class LocalBitmapLoader implements BitmapLoader,AutoCloseable {
+    private static final int MAX_BYTES=12*1024*1024, MAX_EDGE=512;
     private final Context context;
     private final Artwork artwork;
-    private final ExecutorService worker=Executors.newSingleThreadExecutor();
+    private final ExecutorService worker=Executors.newSingleThreadExecutor(r->new Thread(r,"AuraNotificationArt"));
     private final Map<Uri,SettableFuture<Bitmap>> pending=new HashMap<>();
     private final LruCache<Uri,Bitmap> cache=new LruCache<Uri,Bitmap>(8*1024*1024){
         @Override protected int sizeOf(Uri uri,Bitmap bitmap){return bitmap.getAllocationByteCount();}
@@ -32,20 +42,12 @@ public final class LocalBitmapLoader implements BitmapLoader,AutoCloseable {
     }
     public boolean supportsMimeType(String mime){return mime!=null&&mime.startsWith("image/");}
     public ListenableFuture<Bitmap> decodeBitmap(byte[] data){
-        if(data==null||data.length==0||data.length>12*1024*1024)return Futures.immediateFailedFuture(new java.io.IOException("Invalid artwork size"));
+        if(data==null||data.length==0||data.length>MAX_BYTES)return Futures.immediateFailedFuture(new java.io.IOException("Invalid artwork size"));
         SettableFuture<Bitmap> result=SettableFuture.create();
         synchronized(this){if(closed)return Futures.immediateCancelledFuture();decoding.add(result);}
         try{worker.execute(()->{
-            try{
-                BitmapFactory.Options bounds=new BitmapFactory.Options();bounds.inJustDecodeBounds=true;
-                BitmapFactory.decodeByteArray(data,0,data.length,bounds);
-                if(bounds.outWidth<=0||bounds.outHeight<=0)throw new java.io.IOException("Invalid artwork");
-                BitmapFactory.Options options=new BitmapFactory.Options();options.inSampleSize=1;
-                while(Math.max(bounds.outWidth,bounds.outHeight)/options.inSampleSize>512)options.inSampleSize*=2;
-                Bitmap bitmap=BitmapFactory.decodeByteArray(data,0,data.length,options);
-                if(bitmap==null)throw new java.io.IOException("No artwork");
-                result.set(bitmap);
-            }catch(Exception failure){result.setException(new java.io.IOException("Artwork decoding unavailable"));}
+            try{result.set(decodeSampled(data,data.length));}
+            catch(Exception failure){result.setException(new java.io.IOException("Artwork decoding unavailable"));}
             finally{synchronized(LocalBitmapLoader.this){decoding.remove(result);}}
         });}catch(java.util.concurrent.RejectedExecutionException stopped){synchronized(this){decoding.remove(result);}result.cancel(false);}
         return result;
@@ -57,6 +59,12 @@ public final class LocalBitmapLoader implements BitmapLoader,AutoCloseable {
         SettableFuture<Bitmap> existing=pending.get(uri);if(existing!=null)return existing;
         SettableFuture<Bitmap> result=SettableFuture.create();pending.put(uri,result);
         try{worker.execute(()->{
+            if(MediaIds.isHttp(uri.toString())){
+                Bitmap bitmap=null;
+                try{bitmap=fetch(uri);}catch(Exception unavailable){ /* offline and not cached */ }
+                complete(uri,result,bitmap);
+                return;
+            }
             try{
                 // Content-provider MIME lookup may block or throw after permission changes.
                 String mime=context.getContentResolver().getType(uri);
@@ -66,11 +74,42 @@ public final class LocalBitmapLoader implements BitmapLoader,AutoCloseable {
         });}catch(java.util.concurrent.RejectedExecutionException stopped){pending.remove(uri);result.cancel(false);}
         return result;
     }
+    /** Reads remote artwork (cached on disk by the media cache) and decodes it at notification size. */
+    private Bitmap fetch(Uri uri)throws java.io.IOException{
+        DataSource source=MediaCache.dataSourceFactory(context).createDataSource();
+        try{
+            source.open(new DataSpec(uri));
+            byte[] buffer=new byte[64*1024];int length=0;
+            for(;;){
+                if(length==buffer.length){
+                    if(buffer.length>=MAX_BYTES)throw new java.io.IOException("Artwork too large");
+                    buffer=java.util.Arrays.copyOf(buffer,Math.min(MAX_BYTES,buffer.length*2));
+                }
+                int read=source.read(buffer,length,buffer.length-length);
+                if(read==C.RESULT_END_OF_INPUT)break;
+                length+=read;
+                if(Thread.currentThread().isInterrupted())throw new java.io.InterruptedIOException();
+            }
+            return length==0?null:decodeSampled(buffer,length);
+        }finally{
+            try{source.close();}catch(java.io.IOException ignored){}
+        }
+    }
+    private static Bitmap decodeSampled(byte[] data,int length)throws java.io.IOException{
+        BitmapFactory.Options bounds=new BitmapFactory.Options();bounds.inJustDecodeBounds=true;
+        BitmapFactory.decodeByteArray(data,0,length,bounds);
+        if(bounds.outWidth<=0||bounds.outHeight<=0)throw new java.io.IOException("Invalid artwork");
+        BitmapFactory.Options options=new BitmapFactory.Options();options.inSampleSize=1;
+        while(Math.max(bounds.outWidth,bounds.outHeight)/options.inSampleSize>MAX_EDGE)options.inSampleSize*=2;
+        Bitmap bitmap=BitmapFactory.decodeByteArray(data,0,length,options);
+        if(bitmap==null)throw new java.io.IOException("No artwork");
+        return bitmap;
+    }
     private synchronized void complete(Uri uri,SettableFuture<Bitmap> result,Bitmap bitmap){
         if(pending.get(uri)!=result)return;
         pending.remove(uri);
         if(closed){result.cancel(false);return;}
-        if(bitmap==null)result.setException(new java.io.IOException("Local artwork unavailable"));
+        if(bitmap==null)result.setException(new java.io.IOException("Artwork unavailable"));
         else{cache.put(uri,bitmap);result.set(bitmap);}
     }
 }
