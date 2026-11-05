@@ -1,7 +1,7 @@
 package dev.lilt.player.ui;
 
 /**
- * Timing helpers for synced lyrics (used by {@link LyricsView}). Lines are given as start
+ * Timing helpers for synced lyrics (used by the Lyrics screen). Lines are given as start
  * times in milliseconds, ascending. Pure Java.
  */
 public final class LyricsTiming {
