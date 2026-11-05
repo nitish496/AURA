@@ -12,3 +12,4 @@ captured 10-equalizer
 captured 11-replay
 captured 12-home-light
 captured 13-now-playing-light
+CRASH DETECTED (see logcat.txt)
