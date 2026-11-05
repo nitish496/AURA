@@ -31,7 +31,7 @@ public final class Kit {
     public static TextView largeTitle(Context c, ColorRoles roles, CharSequence text) {
         TextView t = Type.text(c, TypeScale.LARGE_TITLE, roles.textPrimary, text);
         Type.singleLine(t);
-        t.setAccessibilityHeading(true);
+        if (android.os.Build.VERSION.SDK_INT >= 28) t.setAccessibilityHeading(true);
         return t;
     }
 
