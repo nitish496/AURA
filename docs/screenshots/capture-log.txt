@@ -11,4 +11,5 @@ captured 09-queue
 captured 10-equalizer
 captured 11-replay
 captured 12-home-light
-captured 13-now-playing-light
+captured 13-library-light
+captured 14-sound-light
