@@ -22,6 +22,17 @@ final class CrossfadeRules {
     }
     static float outgoingGain(long elapsed, long duration) { return 1f - incomingGain(elapsed, duration); }
 
+    /** Volume updates while the two songs overlap (about 40 per second, so no audible steps). */
+    static final long FADE_TICK_MS = 25;
+    /**
+     * Equal-power curves for the audible fade: in² + out² = 1, so two different songs keep a
+     * constant loudness through the overlap (a linear fade dips about 3 dB in the middle).
+     * {@code progress} is {@link #incomingGain}, the linear 0..1 position in the fade.
+     */
+    static float equalPowerIn(float progress) { return (float) Math.sin(clamp01(progress) * Math.PI / 2); }
+    static float equalPowerOut(float progress) { return (float) Math.cos(clamp01(progress) * Math.PI / 2); }
+    private static float clamp01(float value) { return Float.isNaN(value) ? 0f : Math.max(0f, Math.min(1f, value)); }
+
     /** Streams need longer to buffer the incoming song than files on the phone. */
     static long stageLeadMillis(boolean remoteDestination) { return remoteDestination ? REMOTE_STAGE_LEAD_MS : LOCAL_STAGE_LEAD_MS; }
     static long prepareTimeoutMillis(boolean remoteDestination) { return remoteDestination ? REMOTE_PREPARE_TIMEOUT_MS : LOCAL_PREPARE_TIMEOUT_MS; }

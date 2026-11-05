@@ -123,6 +123,7 @@ public final class AudiusApiTest {
         hostPoolPolicy();
         firstHealthyIsParallel();
         mixRelated();
+        storedStreamUrls();
         endToEnd();
         System.out.println(checks + " Audius client tests passed");
     }
@@ -175,6 +176,20 @@ public final class AudiusApiTest {
         check((System.nanoTime() - start) / 1_000_000 < 1_000, "timeout bounds the wait");
         equal(null, HostPool.firstHealthy(Collections.<String>emptyList(), probe, executor, 100), "nothing to probe");
         executor.shutdownNow();
+    }
+
+    private static void storedStreamUrls() {
+        AtomicLong clock = new AtomicLong(5_000_000L);
+        Http unused = new Http("AURA-test", 100, 100, 1024);
+        AudiusApi api = new AudiusApi("http://127.0.0.1:9", "https://api.example", unused, unused, 100, clock::get, new Random(1), true);
+        String stored = "https://old.example/v1/tracks/Lb9Ey/stream?app_name=AURA";
+        equal(stored, api.freshStreamUrl("audius:Lb9Ey", stored), "no host known yet: a stored URL is kept");
+        equal("https://api.example/v1/tracks/Lb9Ey/stream?app_name=AURA", api.freshStreamUrl("audius:Lb9Ey", "https://old.example/v1/tracks/Other/stream"), "mismatched stored URL replaced");
+        equal("https://api.example/v1/tracks/Lb9Ey/stream?app_name=AURA", api.freshStreamUrl("audius:Lb9Ey", "content://media/1"), "non-stream URL replaced");
+        api.hostFailed(stored);
+        equal("https://api.example/v1/tracks/Lb9Ey/stream?app_name=AURA", api.freshStreamUrl("audius:Lb9Ey", stored), "failed stored host moves to the gateway");
+        api.restore("https://dn2.example", Collections.singletonList("https://dn2.example"), clock.get());
+        equal("https://dn2.example/v1/tracks/Lb9Ey/stream?app_name=AURA", api.freshStreamUrl("audius:Lb9Ey", stored), "known healthy host wins");
     }
 
     private static AudiusTrack t(String id, String artist) {

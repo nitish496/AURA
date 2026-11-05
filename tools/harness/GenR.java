@@ -32,6 +32,8 @@ public final class GenR {
   static final Pattern NEW_ID = Pattern.compile("@\\+id/([A-Za-z0-9_.]+)");
 
   final Map<String, Set<String>> res = new TreeMap<>();
+  /** "dir|type/name" seen so far, to report what aapt2 rejects as duplicate resources. */
+  final Map<String, String> defined = new TreeMap<>();
   final Map<String, List<String>> styleables = new TreeMap<>();
   final List<String> problems = new ArrayList<>();
 
@@ -92,13 +94,23 @@ public final class GenR {
           break;
         }
         String name = file.contains(".") ? file.substring(0, file.indexOf('.')) : file;
-        if (!name.matches("[a-z0-9_]+")) problems.add("invalid resource file name (aapt rejects it): " + resDir.relativize(f));
+        if (!name.matches("[a-z_][a-z0-9_]*")) problems.add("invalid resource file name (aapt2 rejects it; use lowercase a-z, 0-9, _): " + resDir.relativize(f));
+        define(d.getFileName() + "|" + type + "/" + name, resDir.relativize(f).toString());
         add(type, name);
         if (file.endsWith(".xml")) {
           Matcher m = NEW_ID.matcher(read(f));
           while (m.find()) add("id", m.group(1));
         }
       }
+    }
+  }
+
+  /** Records a definition; the same resource twice in one qualifier directory fails aapt2. */
+  void define(String key, String where) {
+    String previous = defined.putIfAbsent(key, where);
+    if (previous != null) {
+      problems.add("duplicate resource " + key.substring(key.indexOf('|') + 1) + " in " + key.substring(0, key.indexOf('|'))
+          + " (" + previous + " and " + where + "): aapt2 fails the build");
     }
   }
 
@@ -118,6 +130,14 @@ public final class GenR {
       if (!(n instanceof Element e)) continue;
       String tag = e.getTagName();
       String name = e.getAttribute("name");
+      String dir = f.getParent().getFileName().toString();
+      String where = f.getParent().getParent().relativize(f).toString();
+      switch (tag) {
+        case "string", "color", "dimen", "bool", "integer", "fraction", "style", "plurals", "drawable", "attr", "declare-styleable" -> define(dir + "|" + tag + "/" + name, where);
+        case "array", "string-array", "integer-array" -> define(dir + "|array/" + name, where);
+        case "item" -> define(dir + "|" + e.getAttribute("type") + "/" + name, where);
+        default -> { }
+      }
       switch (tag) {
         case "string", "color", "dimen", "bool", "integer", "fraction", "style", "plurals", "drawable", "attr" -> add(tag, name);
         case "array", "string-array", "integer-array" -> add("array", name);

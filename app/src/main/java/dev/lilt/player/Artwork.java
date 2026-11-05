@@ -83,7 +83,7 @@ public final class Artwork {
         }
         boolean accepted=submit(()-> {
             File saved=new File(context.getCacheDir(),"cover-"+cacheName(sourceIdentity)+".png");
-            BitmapFactory.Options diskOptions=new BitmapFactory.Options();diskOptions.inJustDecodeBounds=true;BitmapFactory.decodeFile(saved.getPath(),diskOptions);diskOptions.inSampleSize=1;while(Math.max(diskOptions.outWidth,diskOptions.outHeight)/diskOptions.inSampleSize>size*2)diskOptions.inSampleSize*=2;diskOptions.inJustDecodeBounds=false;Bitmap bitmap=BitmapFactory.decodeFile(saved.getPath(),diskOptions);boolean diskHit=bitmap!=null;if(diskHit)diskHits.incrementAndGet();boolean fromCustom=diskHit&&custom!=null&&new File(saved.getPath()+".custom").exists();
+            Bitmap bitmap=decodeDisk(saved,size);boolean diskHit=bitmap!=null;if(diskHit)diskHits.incrementAndGet();boolean fromCustom=diskHit&&custom!=null&&new File(saved.getPath()+".custom").exists();
             // Different covers decode concurrently; source() coalesces matching URI keys.
             {
                 if(closed)return;
@@ -109,10 +109,28 @@ public final class Artwork {
                 if(closed||waiting==null)return;
                 for(WeakReference<ImageView> reference:waiting){ImageView image=reference.get();if(image!=null&&identity.equals(image.getTag())){actualViews.put(image,actual);image.setImageBitmap(display);}}
             });
-            if(actual&&!diskHit&&!closed){final Bitmap persist=bitmap;final boolean persistCustom=fromCustom;try{diskWriter.execute(()->{if(closed)return;File temporary=new File(saved.getPath()+"."+Thread.currentThread().getId()+".tmp");try(FileOutputStream out=new FileOutputStream(temporary)){framed(persist,DECODE_SIZE).compress(Bitmap.CompressFormat.PNG,100,out);}catch(IOException ignored){temporary.delete();return;}if(closed){temporary.delete();return;}if(!temporary.renameTo(saved)){temporary.delete();return;}File marker=new File(saved.getPath()+".custom");if(persistCustom)try{marker.createNewFile();}catch(IOException ignored){}else marker.delete();pruneDisk();});}catch(RejectedExecutionException ignored){/* Cache persistence is optional; never block visible decoding. */}}
+            // One write per cover: other sizes of the same cover that missed the disk concurrently skip it.
+            if(actual&&!diskHit&&!closed&&persisting.add(saved.getPath())){final Bitmap persist=bitmap;final boolean persistCustom=fromCustom;try{diskWriter.execute(()->{try{if(closed||saved.isFile())return;File temporary=new File(saved.getPath()+"."+Thread.currentThread().getId()+".tmp");try(FileOutputStream out=new FileOutputStream(temporary)){framed(persist,DECODE_SIZE).compress(Bitmap.CompressFormat.PNG,100,out);}catch(IOException ignored){temporary.delete();return;}if(closed){temporary.delete();return;}if(!temporary.renameTo(saved)){temporary.delete();return;}File marker=new File(saved.getPath()+".custom");if(persistCustom)try{marker.createNewFile();}catch(IOException ignored){}else marker.delete();pruneDisk();}finally{persisting.remove(saved.getPath());}});}catch(RejectedExecutionException ignored){persisting.remove(saved.getPath());/* Cache persistence is optional; never block visible decoding. */}}
 
         });
         if(!accepted){synchronized(requests){requests.remove(key);}view.setTag(null);}
+    }
+    /** Covers being written to the disk cache (paths), so concurrent misses write each file once. */
+    private static final Set<String> persisting=java.util.concurrent.ConcurrentHashMap.newKeySet();
+    /**
+     * Disk-cache read. A missing entry costs one stat and never reaches BitmapFactory (which logs
+     * ENOENT); an unreadable entry is deleted so the next load extracts and rewrites it once.
+     */
+    private static Bitmap decodeDisk(File saved,int size){
+        if(!saved.isFile())return null;
+        BitmapFactory.Options options=new BitmapFactory.Options();options.inJustDecodeBounds=true;BitmapFactory.decodeFile(saved.getPath(),options);
+        Bitmap bitmap=null;
+        if(options.outWidth>0&&options.outHeight>0){
+            options.inSampleSize=1;while(Math.max(options.outWidth,options.outHeight)/options.inSampleSize>size*2)options.inSampleSize*=2;
+            options.inJustDecodeBounds=false;bitmap=BitmapFactory.decodeFile(saved.getPath(),options);
+        }
+        if(bitmap==null&&!persisting.contains(saved.getPath())){saved.delete();new File(saved.getPath()+".custom").delete();}
+        return bitmap;
     }
     private void pruneDisk(){
         if(System.currentTimeMillis()-lastPrune<=30000)return;lastPrune=System.currentTimeMillis();

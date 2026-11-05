@@ -177,3 +177,190 @@ plays, run on a worker thread and never interrupt a queue the user changed meanw
 - Players run on the main thread. Disk, network and scans run on: `AuraQueueStore` (queue),
   `AuraPlaybackWorker` (autoplay, cache info), `AuraLoudness`, `AuraStats`, `AuraNotificationArt`.
   All are shut down in `onDestroy`; the stats store lives for the process.
+
+## Streaming (`dev.lilt.player.stream`)
+
+The streaming layer provides the Audius catalogue, the library of songs and playlists saved without
+downloading audio, lyrics, network state, and https artwork in `Artwork`. It uses only platform
+APIs: `HttpURLConnection`, `org.json` and `java.util.concurrent`. It has no third-party
+dependencies.
+
+### Layout
+
+The parsing and policy code is pure Java (`org.json` at most), so it runs in the offline logic tests.
+Thin Android facades sit on top of it.
+
+| Pure core (tested on the JVM) | Android facade (app-facing) |
+| --- | --- |
+| `AudiusApi`: endpoints, host pool, failover, TTL cache; `AudiusParser`; `AudiusTrack`; `HostPool`; `TtlCache`; `Http` | `AudiusClient` (singleton; returns `Track`) |
+| `RecordStore`: ordered, bounded JSON store; `JsonFiles` (atomic writes) | `RemoteTrackStore`, `SavedCatalog` |
+| `LrclibApi`, `LrcParser`, `Lyrics`, `EmbeddedLyrics` (ID3/FLAC tags) | `LyricsClient` |
+| `CatalogArtist`, `CatalogPlaylist`, `StreamArt` (artwork variants) | `Connectivity`; `StreamStorage` (package-private app context and dirs) |
+
+### Track contract (`dev.lilt.player.Track`)
+
+- `source` is `"local"` or `"audius"`, and `isRemote()` tells them apart. Remote ids are always
+  `"audius:<trackId>"`. For a remote track, `uri` is the stream URL
+  `{host}/v1/tracks/{id}/stream?app_name=AURA`, which redirects to the audio.
+- `artworkUrl` holds the best https cover (1000x1000, else 480, else 150), or null. `genre`,
+  `artistId` and `permalink` are `""` when unknown, and always `""` for local tracks.
+  `artworkUrl(px)` picks the 150, 480 or 1000 variant. `webUrl()` returns the audius.co share link.
+- `Track.remote(...)` comes in two overloads: the contract's 8-argument form, and a 10-argument
+  form that adds `artistId` and `permalink`. A blank album becomes `"Single"`.
+  `withStreamUrl(url)` returns a copy for host failover.
+- `item(Uri)` is unchanged for local tracks. For remote tracks it sets the artwork URI to
+  `artworkUrl` (custom covers apply only to local files), `albumArtist`, `genre`, `durationMs`, and
+  these extras: `source`, `artistId`, `permalink` and `durationMs`.
+- `albumKey()` is unchanged for local tracks. Remote tracks never merge with local albums:
+  `remote-single:<id>` for singles, and `remote-album:<album>:<artist>` for albums.
+- `toJson()` / `fromJson()` persist remote (and local) metadata. `fromJson` returns null for an
+  unusable record and never throws.
+
+### Audius catalogue (`AudiusClient`)
+
+`AudiusClient.get()` (or `get(context)`, which also turns on host memory) exposes `trending`,
+`searchTracks`, `searchArtists`, `searchPlaylists`, `trendingPlaylists`, `playlistTracks(id |
+CatalogPlaylist)`, `artistTracks` (most played first), `related(seed, n)` and `track(id)`.
+`related` interleaves the same artist's top tracks with trending tracks of the same genre and leaves
+out the seed. For local seeds it matches the artist by exact name. `genres()` returns the curated
+Browse genres in exact Audius spelling.
+
+- **Threading.** Every catalogue call blocks and throws `IllegalStateException` on the main thread.
+  Errors are `IOException`. `Http.StatusException.code` carries the HTTP status. A 404 from
+  `track(id)` returns null.
+- **Hosts.** `GET https://api.audius.co` returns the host list. Only https origins are accepted.
+  Up to 4 hosts are probed in parallel with `GET /v1/tracks/trending?limit=1`, and the first one
+  that answers healthy within 4 s wins. That host stays in use until a request fails with an I/O
+  error, a timeout, a 5xx, 408 or 429, or a malformed body. A failed host cools down for 5 minutes,
+  and the request is retried (3 attempts) on a newly probed host, then on the `api.audius.co`
+  gateway. The gateway is itself retried against discovered hosts after 5 minutes. Other 4xx
+  answers do not fail over. The chosen host and the host list are remembered for a day in
+  `files/stream/audius_host.json`, so a cold start skips discovery. Timeouts are connect 6 s and
+  read 10 s (probes: 3 s and 4 s). Requests ask for gzip. Every request carries `app_name=AURA`.
+- **Cache.** Parsed results are cached in memory, LRU 64 entries: trending and catalogue pages for
+  10 minutes, searches for 2 minutes.
+- **Filtering.** Tracks are dropped when deleted, `is_streamable == false`, unavailable,
+  stream-gated without access (purchase or follow), or owned by a deactivated user. Playlists are
+  dropped when deleted, private, gated or empty. Duration is converted from seconds to ms, and
+  `user.name` becomes the artist. The album comes from the album context
+  (`playlistTracks(CatalogPlaylist)` for an album), then `album_backlink`, then `"Single"`.
+- **Streams.** `streamUrl(id)` uses the current healthy host, or the gateway. `refresh(track)`
+  moves a stored track to the current host, and keeps its own URL while no host is known and that
+  URL's host has not failed. `failover(track)` marks the stream's host as failed and returns the
+  track on the next host. Both are non-blocking. The audio engine calls `failover` when a stream
+  fails to open, and keys its stream cache by track id (`audio.CacheKeys`), so a host change never
+  invalidates cached audio.
+
+### Library without downloads (`RemoteTrackStore`, `SavedCatalog`)
+
+Both use `RecordStore`. The store loads its JSON file once, in the background, when the first
+instance is created. An earlier access waits for that load. Reads are in-memory. Writes are
+debounced by about 0.5 s onto a background thread and replace the file atomically (write, fsync,
+rename). A corrupt file is moved to `*.corrupt` and the store starts empty. All instances in the
+process share one state.
+
+- `RemoteTrackStore` holds the metadata of remote tracks that must resolve later: queued,
+  favourited, in playlists or recent (`files/stream/remote_tracks.json`, 5,000 entries, least
+  recently `put` evicted). `get(id)` also resolves saved songs and tracks of saved playlists, so
+  ids stored anywhere (Library playlists, favourites, the queue) resolve offline. Every returned
+  track goes through `AudiusClient.refresh`.
+- `SavedCatalog` holds the user's streamed library (`saved_tracks.json`, up to 20,000 songs;
+  `saved_playlists.json`, up to 1,000 playlists, each with a snapshot of up to 2,000 tracks).
+  - Songs: `add`, `addAll`, `remove`, `contains`, `savedAt`, `get`, `tracks()` (newest first),
+    `isFull`.
+  - Playlists: `addPlaylist(p, tracks)`, `updatePlaylistTracks`, `removePlaylist`,
+    `containsPlaylist`, `playlist`, `playlists()`, `playlistTracks`.
+  - Saving again refreshes the metadata without reordering. When the library is full, `add` returns
+    false; it never silently drops an older song.
+  - `Listener.onSavedCatalogChanged()` runs on the main thread, coalesced per burst of changes.
+    Remove listeners in `onDestroy`.
+
+### Lyrics (`LyricsClient`, `EmbeddedLyrics`, `LrclibApi`, `LrcParser`)
+
+`LyricsClient.get(context).fetch(track)` blocks and never returns null. It returns `Lyrics.NONE` or
+an `instrumental` marker when nothing is found, and throws `IOException` only when LRCLIB is
+needed but cannot be reached and nothing is cached.
+
+1. **Local tracks** first check lyrics embedded in the file. The client reads them with
+   `ContentResolver.openInputStream`, reading at most the tag and never more than 2 MB, and skips
+   FLAC pictures without reading them. Supported formats:
+   - ID3v2.2, 2.3 and 2.4 `USLT`/`ULT` frames. A text with LRC timestamps counts as synced.
+   - `SYLT`/`SLT` frames with millisecond timestamps, including karaoke syllables.
+   - Encodings 0–3, tag- and frame-level unsynchronisation, extended headers, syncsafe and legacy
+     iTunes plain frame sizes, zlib-compressed frames.
+   - FLAC Vorbis comments `LYRICS` and `UNSYNCEDLYRICS`.
+2. **LRCLIB** (`https://lrclib.net`, User-Agent `AURA/2.0 (https://github.com/nitish496/AURA)`)
+   is the fallback, and the only source for remote tracks.
+   - `/api/get` is called with the exact signature when the album is meaningful.
+   - Otherwise, `/api/search` is called by title and artist, retrying with a cleaned title (without
+     "feat.", brackets or " - Remaster"). The search keeps results by the same artist and picks the
+     closest duration.
+   - Synced lines are kept only within 3 s of the track's duration. A match within 10 s contributes
+     plain lyrics only, so the timing is never wrong.
+3. **Caching.** Results are cached per track id in memory. LRCLIB answers are also cached on disk,
+   one JSON file per song in `cache/lyrics` (2,000 files): 30 days when found and 2 days when not
+   found. Expired lyrics are still served if the refresh fails.
+
+`Lyrics` holds `lines` (sorted `Line{timeMs, text}`; a blank text marks an instrumental gap),
+`plain`, `instrumental` and `source` (`embedded` or `lrclib`). `synced()` reports whether lines
+exist, and `indexAt(positionMs)` finds the current line by binary search, returning -1 before the
+first line. `LrcParser` handles several timestamps per line, `[mm:ss]`, `.x`, `.xxx` and `:xx`
+fractions, `[offset:±ms]`, metadata tags, `<mm:ss.xx>` word stamps, a BOM, and CR/LF line endings.
+
+### Artwork for streamed tracks (`dev.lilt.player.Artwork`)
+
+The public API is unchanged. `load(view, track)`, `prefetch`, `warm` and `loadActual(...)` accept
+remote tracks and https URIs. The local code path is untouched.
+
+- Remote covers use the same memory caches, placeholders and request coalescing as local covers.
+- Downloads run on a separate 4-thread LIFO pool, so the newest (visible) requests go first and
+  network latency never delays local decodes.
+- A queued download is dropped when every view waiting for it has been recycled.
+- Lists fetch the 150 or 480 variant. The player fetches the 1000x1000 original, sampled so that
+  at least 900 px remain.
+- The original bytes go into the shared `cache/cover-*.png` disk cache (256 MB, oldest first out).
+- Failures are cached: 60 s for network errors, 6 h for 404 or a body that is not an image. A failed
+  view keeps its placeholder and retries on its next `load`.
+- `loadActual` maps an Audius stream URL to the stored artwork of its track. It never runs
+  `MediaMetadataRetriever` on a network URI.
+
+### Connectivity
+
+- `Connectivity.online(context)` reports whether the default network has validated internet
+  access.
+- `metered(context)` reports whether that network is metered.
+- `listen(context, listener)` reports online/offline flips on the main thread. Call `cancel()` on
+  the returned subscription in `onDestroy`.
+
+These checks need `ACCESS_NETWORK_STATE`. The manifest also declares `INTERNET`. Cleartext traffic
+stays disabled, which is the default at targetSdk 35.
+
+### Integration notes for UI code
+
+- Call `AudiusClient.get(context)`, `LyricsClient.get(context)` or any constructor that takes a
+  `Context` early (for example in `onCreate`). The context turns on host memory, the lyrics disk
+  cache and embedded lyrics. Optionally call `AudiusClient.get().warmUp()` at start.
+- Run every catalogue or lyrics call on a worker executor and post the results back. Show offline
+  states with `Connectivity`.
+- `put` remote tracks into `RemoteTrackStore` when they are queued, favourited or added to a Library
+  playlist. Saving to the library is `SavedCatalog.add`. Pass the album object to
+  `playlistTracks(CatalogPlaylist)` so its tracks carry the album name.
+- Load lyrics only when the lyrics view opens: LRCLIB lookups send song metadata off the device (see
+  `docs/PRIVACY_REVIEW.md`).
+
+### Tests
+
+The logic tests in `tests/stream/` run offline on the JVM through `scripts/run-logic-tests.sh`:
+
+- `AudiusParserTest` checks parsing against fixtures shaped like real API responses
+  (`tests/fixtures/audius`).
+- `AudiusApiTest` runs discovery, the parallel probe, failover to the next host and then the
+  gateway, caching, gzip, 404 handling and host memory against loopback HTTP servers.
+- `LrclibApiTest` covers LRCLIB matching and caching (`tests/fixtures/lrclib`).
+- `LrcParserTest` covers LRC parsing.
+- `EmbeddedLyricsTest` covers tags written by mutagen (`tests/fixtures/embedded`, the CI demo
+  shape) plus synthetic byte fixtures for every ID3 and FLAC branch.
+- `RecordStoreTest` covers ordering, bounds, atomic persistence and corrupt files.
+- `TrackJsonTest` covers the `Track` model on android-all.
+
+The sandbox cannot reach Audius or LRCLIB, so the tests use fixtures and loopback servers only.

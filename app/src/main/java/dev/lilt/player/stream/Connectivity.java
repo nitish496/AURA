@@ -49,9 +49,9 @@ public final class Connectivity {
         Handler main = new Handler(Looper.getMainLooper());
         boolean initial = online(context);
         ConnectivityManager.NetworkCallback callback = new ConnectivityManager.NetworkCallback() {
-            private Boolean last = initial;
+            private boolean last = initial;
             private void report(boolean now) {
-                if (last != null && last == now) return;
+                if (last == now) return;
                 last = now;
                 listener.onConnectivityChanged(now);
             }

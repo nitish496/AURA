@@ -1,28 +1,50 @@
 package dev.lilt.player;
 
 import android.Manifest;
-import android.content.*;
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
+import android.util.AtomicFile;
 import android.util.Base64;
-import androidx.media3.common.*;
+import androidx.media3.common.MediaItem;
+import androidx.media3.common.MediaMetadata;
+import androidx.media3.common.Timeline;
 import androidx.media3.exoplayer.ExoPlayer;
 import dev.lilt.player.audio.MediaIds;
 import dev.lilt.player.audio.QueueOrders;
 import dev.lilt.player.audio.QueueRestorePlan;
 import dev.lilt.player.stream.RemoteTrackStore;
-import java.util.*;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.function.Consumer;
 
 /**
- * Persists the playback queue (items, current index, position, shuffle/repeat and the shuffled
- * play order) and restores it on start-up. Reading, decoding and resolving happen on the store's
- * own thread; only the final player calls run on the main thread.
+ * Persists the playback queue and restores it on start-up.
  *
- * <p>Device songs need the media permission; catalogue songs ("audius:" ids) resolve through
- * {@link RemoteTrackStore} for fresh metadata, falling back to what the snapshot itself recorded
+ * <p>Storage: the queue itself ({@link QueueSnapshot} + shuffled play order) lives in
+ * {@code files/queue.bin}, written atomically and only when the queue changes. The frequently
+ * changing part (current index, position, shuffle, repeat) is a tiny "state" string in the
+ * "playback" preferences, so the 5-second position checkpoint never rewrites a large file. Queues
+ * longer than 2000 items keep a 2000-item window around the current song. All disk work runs on
+ * the store's own thread; only player calls run on the main thread.
+ *
+ * <p>Restore: device songs need the media permission; catalogue songs ("audius:" ids) resolve
+ * through {@link RemoteTrackStore} for fresh metadata, falling back to what the snapshot recorded
  * (stream URL, title, artist, artwork). Entries that cannot be resolved are dropped gracefully
  * ({@link QueueRestorePlan}).
  */
@@ -40,37 +62,127 @@ public final class PlaybackStore {
         }
     }
 
+    private static final int FILE_MAGIC=0x41513032, FILE_VERSION=1, MAX_ITEMS=2000; // "AQ02"
     private final Context context;
-    private final android.content.SharedPreferences prefs;
+    private final SharedPreferences prefs;
+    private final ExecutorService writer=Executors.newSingleThreadExecutor(r->new Thread(r,"AuraQueueStore"));
+    private AtomicFile file; // created on the writer thread (getFilesDir may touch the disk)
+
+    // Main thread.
     private boolean initialized;
     private Timeline savedTimeline;
     private List<QueueSnapshot.Entry> savedEntries=Collections.emptyList();
-    private String savedOrder="";
-    private final java.util.concurrent.ExecutorService writer=java.util.concurrent.Executors.newSingleThreadExecutor(r->new Thread(r,"AuraQueueStore"));
-    private QueueSnapshot pending;
-    private String pendingOrder="";
+    private int windowStart,windowEnd;
+    private int[] entryOf=new int[0];
+    private long queueVersion;
+
+    // Guarded by this.
+    private byte[] pendingFile;
+    private String pendingState;
     private boolean writing;
 
     public PlaybackStore(Context context) {
         this.context=context.getApplicationContext();prefs=this.context.getSharedPreferences("playback",Context.MODE_PRIVATE);
     }
 
-    private synchronized void enqueue(QueueSnapshot snapshot,String order) {
-        pending=snapshot;pendingOrder=order;
+    /** Lets queued writes finish, then stops the store's thread. */
+    public void close(){writer.shutdown();}
+
+    // ------------------------------------------------------------------ save
+
+    public void save(ExoPlayer player) {
+        if(player.getMediaItemCount()>0)initialized=true;
+        if(!initialized)return;
+        try {
+            Timeline timeline=player.getCurrentTimeline();
+            int count=player.getMediaItemCount(),current=player.getCurrentMediaItemIndex();
+            byte[] fileBytes=null;
+            boolean outsideWindow=count>0&&(current<windowStart||current>=windowEnd);
+            if(timeline!=savedTimeline||outsideWindow) {
+                rebuild(player,count,current);
+                savedTimeline=timeline;
+                queueVersion=Math.max(queueVersion+1,System.currentTimeMillis());
+                QueueSnapshot snapshot=new QueueSnapshot(savedEntries,entryIndex(current),player.getCurrentPosition(),player.getShuffleModeEnabled(),player.getRepeatMode());
+                boolean whole=windowStart==0&&windowEnd==count&&savedEntries.size()==count;
+                fileBytes=encodeFile(queueVersion,snapshot,whole?QueueOrders.shuffleOrder(player):null);
+            }
+            String state=queueVersion+";"+entryIndex(current)+";"+Math.max(0,player.getCurrentPosition())+";"+(player.getShuffleModeEnabled()?1:0)+";"+player.getRepeatMode();
+            enqueue(fileBytes,state);
+        } catch(Exception ignored) { /* Persistence failure should not interrupt music. */ }
+    }
+
+    /** Snapshot entries for at most MAX_ITEMS player items around the current one. */
+    private void rebuild(ExoPlayer player,int count,int current){
+        int start=count<=MAX_ITEMS?0:Math.max(0,Math.min(current-MAX_ITEMS/2,count-MAX_ITEMS));
+        int end=Math.min(count,start+MAX_ITEMS);
+        List<QueueSnapshot.Entry> entries=new ArrayList<>(end-start);
+        int[] map=new int[end-start];
+        for(int i=start;i<end;i++) {
+            MediaItem item=player.getMediaItemAt(i);
+            if(item.localConfiguration==null){map[i-start]=-1;continue;}
+            MediaMetadata meta=item.mediaMetadata;
+            map[i-start]=entries.size();
+            entries.add(new QueueSnapshot.Entry(item.mediaId,item.localConfiguration.uri.toString(),string(meta.title),string(meta.artist),string(meta.albumTitle),meta.artworkUri==null?"":meta.artworkUri.toString()));
+        }
+        savedEntries=entries;windowStart=start;windowEnd=end;entryOf=map;
+    }
+
+    /** Index of the current player item inside the saved entries (its nearest saved predecessor). */
+    private int entryIndex(int current){
+        if(current<windowStart||current>=windowEnd)return 0;
+        for(int k=current-windowStart;k>=0;k--)if(entryOf[k]>=0)return entryOf[k];
+        return 0;
+    }
+
+    private static byte[] encodeFile(long version,QueueSnapshot snapshot,int[] order)throws IOException{
+        byte[] queue=snapshot.encode();
+        ByteArrayOutputStream bytes=new ByteArrayOutputStream(queue.length+64+(order==null?0:order.length*4));
+        DataOutputStream out=new DataOutputStream(bytes);
+        out.writeInt(FILE_MAGIC);out.writeInt(FILE_VERSION);out.writeLong(version);
+        out.writeInt(order==null?0:order.length);
+        if(order!=null)for(int value:order)out.writeInt(value);
+        out.writeInt(queue.length);out.write(queue);
+        out.flush();
+        return bytes.toByteArray();
+    }
+
+    private synchronized void enqueue(byte[] fileBytes,String state) {
+        if(fileBytes!=null)pendingFile=fileBytes;
+        pendingState=state;
         if(writing)return;
         writing=true;
         try{writer.execute(()-> {
             for(;;) {
-                QueueSnapshot latest;String latestOrder;
-                synchronized(this){latest=pending;latestOrder=pendingOrder;pending=null;if(latest==null){writing=false;return;}}
-                try{prefs.edit().putString("queue",Base64.encodeToString(latest.encode(),Base64.NO_WRAP)).putString("shuffleOrder",latestOrder).apply();}
-                catch(Exception ignored) { /* Keep playback independent of storage errors. */ }
+                byte[] latestFile;String latestState;
+                synchronized(this){latestFile=pendingFile;latestState=pendingState;pendingFile=null;pendingState=null;
+                    if(latestFile==null&&latestState==null){writing=false;return;}}
+                if(latestFile!=null)writeQueueFile(latestFile);
+                // The small state refers to a queue version; written after that version's file.
+                if(latestState!=null)try{prefs.edit().putString("state",latestState).apply();}catch(RuntimeException ignored){}
             }
-        });}catch(java.util.concurrent.RejectedExecutionException closed){writing=false;}
+        });}catch(RejectedExecutionException closed){writing=false;}
     }
 
-    /** Lets queued writes finish, then stops the store's thread. */
-    public void close(){writer.shutdown();}
+    /** Writer thread. */
+    private void writeQueueFile(byte[] bytes){
+        FileOutputStream out=null;
+        try{
+            out=queueFile().startWrite();
+            out.write(bytes);
+            queueFile().finishWrite(out);
+            // Migrated: drop the pre-2.0 copy that lived in SharedPreferences.
+            if(prefs.contains("queue"))prefs.edit().remove("queue").remove("shuffleOrder").apply();
+        }catch(IOException|RuntimeException failed){
+            if(out!=null)queueFile().failWrite(out);
+        }
+    }
+
+    private AtomicFile queueFile(){
+        if(file==null)file=new AtomicFile(new File(context.getFilesDir(),"queue.bin"));
+        return file;
+    }
+
+    // ------------------------------------------------------------------ restore
 
     /** Reads the saved queue off the main thread and delivers it (or null) on {@code main}. */
     public void restoreAsync(Handler main,Consumer<Restored> done){
@@ -79,13 +191,41 @@ public final class PlaybackStore {
             try{restored=load();}catch(Exception corrupt){ /* A corrupt/old record does not block the library. */ }
             final Restored result=restored;
             main.post(()->done.accept(result));
-        });}catch(java.util.concurrent.RejectedExecutionException closed){main.post(()->done.accept(null));}
+        });}catch(RejectedExecutionException closed){main.post(()->done.accept(null));}
     }
 
-    /** Decodes and resolves the saved queue. Blocking: worker threads only. */
-    public Restored load() throws java.io.IOException {
-        String saved=prefs.getString("queue",null);if(saved==null)return null;
-        QueueSnapshot snapshot=QueueSnapshot.decode(Base64.decode(saved,Base64.NO_WRAP));
+    /** Decodes and resolves the saved queue. Blocking: the store's thread or another worker only. */
+    public Restored load() throws IOException {
+        QueueSnapshot snapshot=null;int[] order=null;long version=-1;
+        byte[] bytes=null;
+        try{bytes=queueFile().readFully();}catch(FileNotFoundException none){ /* first run or legacy */ }
+        if(bytes!=null&&bytes.length>0){
+            DataInputStream in=new DataInputStream(new ByteArrayInputStream(bytes));
+            if(in.readInt()!=FILE_MAGIC||in.readInt()!=FILE_VERSION)throw new IOException("Unknown queue file");
+            version=in.readLong();
+            int orderLength=in.readInt();
+            if(orderLength<0||orderLength>MAX_ITEMS)throw new IOException("Invalid order");
+            if(orderLength>0){order=new int[orderLength];for(int i=0;i<orderLength;i++)order[i]=in.readInt();}
+            int length=in.readInt();
+            if(length<0||length>in.available())throw new IOException("Truncated queue file");
+            byte[] queue=new byte[length];in.readFully(queue);
+            snapshot=QueueSnapshot.decode(queue);
+        } else {
+            String legacy=prefs.getString("queue",null);
+            if(legacy==null)return null;
+            snapshot=QueueSnapshot.decode(Base64.decode(legacy,Base64.NO_WRAP));
+            order=QueueRestorePlan.parseOrder(prefs.getString("shuffleOrder",null));
+        }
+        int savedIndex=snapshot.index,savedRepeat=snapshot.repeat;long savedPosition=snapshot.position;boolean savedShuffle=snapshot.shuffle;
+        String[] state=prefs.getString("state","").split(";");
+        if(state.length==5&&version>=0)try{
+            if(Long.parseLong(state[0])==version){
+                savedIndex=Integer.parseInt(state[1]);savedPosition=Long.parseLong(state[2]);
+                savedShuffle=state[3].equals("1");savedRepeat=Integer.parseInt(state[4]);
+                if(savedRepeat<0||savedRepeat>2)savedRepeat=0;
+            }
+        }catch(NumberFormatException stale){ /* keep the snapshot's own values */ }
+
         String permission=Build.VERSION.SDK_INT>=33?Manifest.permission.READ_MEDIA_AUDIO:Manifest.permission.READ_EXTERNAL_STORAGE;
         boolean localAllowed=context.checkSelfPermission(permission)==PackageManager.PERMISSION_GRANTED;
         int n=snapshot.entries.size();
@@ -107,11 +247,11 @@ public final class PlaybackStore {
                 }
             }catch(RuntimeException unresolvable){ keep[i]=false; }
         }
-        QueueRestorePlan plan=QueueRestorePlan.plan(keep,snapshot.index,snapshot.position,QueueRestorePlan.parseOrder(prefs.getString("shuffleOrder",null)));
+        QueueRestorePlan plan=QueueRestorePlan.plan(keep,savedIndex,savedPosition,order);
         if(plan.isEmpty())return null;
         List<MediaItem> list=new ArrayList<>(plan.kept.length);
         for(int k:plan.kept)list.add(items[k]);
-        return new Restored(list,plan.index,plan.position,snapshot.shuffle,snapshot.repeat,plan.shuffleOrder);
+        return new Restored(list,plan.index,plan.position,savedShuffle,savedRepeat,plan.shuffleOrder);
     }
 
     /** Puts a restored queue on the player, paused. Reopening the app must never start sound. */
@@ -129,24 +269,5 @@ public final class PlaybackStore {
         initialized=true;
     }
 
-    public void save(ExoPlayer player) {
-        if(player.getMediaItemCount()>0)initialized=true;
-        if(!initialized)return;
-        try {
-            Timeline timeline=player.getCurrentTimeline();
-            if(timeline!=savedTimeline) {
-                List<QueueSnapshot.Entry> entries=new ArrayList<>();
-                for(int i=0;i<Math.min(player.getMediaItemCount(),2000);i++) {
-                    MediaItem item=player.getMediaItemAt(i);if(item.localConfiguration==null)continue;
-                    MediaMetadata meta=item.mediaMetadata;
-                    entries.add(new QueueSnapshot.Entry(item.mediaId,item.localConfiguration.uri.toString(),string(meta.title),string(meta.artist),string(meta.albumTitle),meta.artworkUri==null?"":meta.artworkUri.toString()));
-                }
-                int[] order=entries.size()==player.getMediaItemCount()?QueueOrders.shuffleOrder(player):null;
-                savedEntries=entries;savedTimeline=timeline;savedOrder=QueueRestorePlan.formatOrder(order);
-            }
-            QueueSnapshot snapshot=new QueueSnapshot(savedEntries,player.getCurrentMediaItemIndex(),player.getCurrentPosition(),player.getShuffleModeEnabled(),player.getRepeatMode());
-            enqueue(snapshot,savedOrder);
-        } catch(Exception ignored) { /* Persistence failure should not interrupt music. */ }
-    }
     private String string(CharSequence text) {return text==null?"":text.toString();}
 }

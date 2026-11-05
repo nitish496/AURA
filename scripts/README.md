@@ -30,13 +30,19 @@ Rules it enforces that javac alone would not (both fail CI):
   `@UnstableApi` on the enclosing method/class — Android lint fails `lintDebug` otherwise.
 - **`R` ids are not constants** (AGP 8 `nonFinalResIds`): no `switch` on `R.id.*`.
 - Only the Android-available JDK modules are visible (`java.net.http`, `java.awt`, … are rejected).
+- Resource files: invalid file names and duplicate resources (same name twice in one `res/<dir>`,
+  or the same `type/name` in two values files of one directory) are reported, as aapt2 would.
 
 Not on the app's compile classpath in the real build either, so also unavailable here:
 `androidx.annotation.Nullable/NonNull/...` and `androidx.core.*` (they are `implementation` deps
 of media3). Add them to `app/build.gradle` first if you really need them.
 
-Known gaps (CI catches these): Android lint (`NewApi` for minSdk 26, …), manifest/resource
-linking errors, and `@hide` framework APIs (android-all contains them, `android.jar` does not).
+Known gaps (CI catches these): Android lint, manifest/resource linking errors, and `@hide`
+framework APIs (android-all contains them, `android.jar` does not). In particular API levels are
+**not** checked: javac sees the full JDK 17 / API 35 surface, but minSdk is 26. Guard newer
+framework calls with `Build.VERSION.SDK_INT`, and avoid JDK 9+ library methods that Android only
+added later (`String.isBlank/strip/repeat`, `Stream.toList`, `InputStream.readAllBytes`,
+`Optional.isEmpty`, …); lint `NewApi` fails CI on them.
 
 Missing media3 class? Add it to `ROOTS` in `tools/stubgen/regen-media3-stubs.py` and run
 `python3 -I tools/stubgen/regen-media3-stubs.py` (fetches sources from raw.githubusercontent.com,

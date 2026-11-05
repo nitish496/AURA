@@ -60,7 +60,8 @@ final class CrossfadeEngine {
         if(closed)return;
         handler.removeCallbacks(tick);
         ExoPlayer active=host.active();
-        long delay=CrossfadeRules.tickDelayMillis(incoming!=null,active.isPlaying()&&host.allowCrossfade(),seconds,active.getDuration(),active.getCurrentPosition());
+        long delay=fading?CrossfadeRules.FADE_TICK_MS
+                :CrossfadeRules.tickDelayMillis(incoming!=null,active.isPlaying()&&host.allowCrossfade(),seconds,active.getDuration(),active.getCurrentPosition());
         if(delay>=0)handler.postDelayed(tick,delay);
     }
     void playerError(ExoPlayer source,int code){
@@ -111,8 +112,9 @@ final class CrossfadeEngine {
             }
             if(!incoming.isPlaying()||incoming.getPlaybackState()!=Player.STATE_READY){fail("destination_stalled");return;}
             long elapsed=now-fadeStarted;
-            outgoing.setVolume(baseVolume*CrossfadeRules.outgoingGain(elapsed,fadeMillis));
-            incoming.setVolume(incomingTarget*CrossfadeRules.incomingGain(elapsed,fadeMillis));
+            float progress=CrossfadeRules.incomingGain(elapsed,fadeMillis);
+            outgoing.setVolume(baseVolume*CrossfadeRules.equalPowerOut(progress));
+            incoming.setVolume(incomingTarget*CrossfadeRules.equalPowerIn(progress));
             if(host.debugEnabled() && now-lastGainLog>=500){lastGainLog=now;debug("gain source="+outgoing.getVolume()+" destination="+incoming.getVolume()+" destinationMs="+incoming.getCurrentPosition());}
             if(elapsed>=fadeMillis)finish();
             return;

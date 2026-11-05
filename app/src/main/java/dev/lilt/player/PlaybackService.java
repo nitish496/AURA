@@ -181,24 +181,18 @@ public final class PlaybackService extends MediaSessionService {
         stats = ListeningStats.get(this);
         loudness = new LoudnessStore(this, () -> handler.post(() -> { if (!destroyed) applyTrackGain(player); }));
 
-        LoudnessTap firstTap = new LoudnessTap(), secondTap = new LoudnessTap();
+        LoudnessTap firstTap = new LoudnessTap();
         first = new Channel(PlayerFactory.build(this, firstTap, true), firstTap);
-        second = new Channel(PlayerFactory.build(this, secondTap, false), secondTap);
         player = first.player;
-        spare = second.player;
         player.setPlaybackParameters(new PlaybackParameters(fx.speed));
         effects.attach(first.sessionId);
-        effects.attach(second.sessionId);
 
         store = new PlaybackStore(this);
         PlayerWidget.publish(this, player);
         sleepTimer = new SleepTimer(this::sleepExpired);
 
-        Player.Listener events = new Player.Listener() {
-            @Override public void onEvents(Player p, Player.Events e) { if (p == player) onActiveEvents(e); }
-        };
-        player.addListener(events); spare.addListener(events);
-        attachPlayerListener(player); attachPlayerListener(spare);
+        player.addListener(activeEvents);
+        attachPlayerListener(player);
 
         PendingIntent open = PendingIntent.getActivity(this, 0, new Intent(this, MainActivity.class), PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
         bitmapLoader = new LocalBitmapLoader(this);
@@ -207,7 +201,7 @@ public final class PlaybackService extends MediaSessionService {
         crossfade = new CrossfadeEngine(new CrossfadeEngine.Host() {
             public boolean debugEnabled() { return debug; }
             public ExoPlayer active() { return player; }
-            public ExoPlayer spare() { return spare; }
+            public ExoPlayer spare() { return ensureSpare(); }
             public boolean allowCrossfade() { return !sleepAtEndOfTrack && !(sleepTimer.isActive() && sleepTimer.remainingMillis() <= SLEEP_FADE_MS + 15_000); }
             public boolean isRemote(MediaItem item) { return PlaybackService.isRemote(item); }
             public void staging(ExoPlayer incoming, MediaItem destination) {
@@ -222,6 +216,8 @@ public final class PlaybackService extends MediaSessionService {
             public void promote(ExoPlayer incoming, ExoPlayer outgoing) { promoteSpare(incoming, outgoing); }
         }, handler);
         crossfade.setSeconds(crossfadeSeconds);
+        // The spare player (a second playback thread) only exists while crossfade is on.
+        if (crossfadeSeconds > 0) ensureSpare();
 
         network = new NetworkMonitor(this, handler, this::onOnline);
         network.start();
@@ -233,6 +229,38 @@ public final class PlaybackService extends MediaSessionService {
             store.apply(player, restored);
             PlayerWidget.publish(this, player);
         });
+    }
+
+    private final Player.Listener activeEvents = new Player.Listener() {
+        @Override public void onEvents(Player p, Player.Events e) { if (p == player) onActiveEvents(e); }
+    };
+
+    /** Creates the crossfade spare player on first use, with the same effects and wake mode. */
+    private ExoPlayer ensureSpare() {
+        if (spare != null || destroyed) return spare;
+        LoudnessTap tap = new LoudnessTap();
+        ExoPlayer created = PlayerFactory.build(this, tap, false);
+        Channel channel = new Channel(created, tap);
+        if (first == null) first = channel; else second = channel;
+        created.addListener(activeEvents);
+        attachPlayerListener(created);
+        created.setWakeMode(wakeMode);
+        effects.attach(channel.sessionId);
+        spare = created;
+        return spare;
+    }
+
+    /** Frees the spare player (and its playback thread) when crossfade is switched off. */
+    private void releaseSpare() {
+        if (spare == null) return;
+        crossfade.cancel();
+        Channel channel = channelOf(spare);
+        if (channel != null) {
+            effects.detach(channel.sessionId);
+            if (first == channel) first = null; else if (second == channel) second = null;
+        }
+        spare.release();
+        spare = null;
     }
 
     @Override public MediaSession onGetSession(MediaSession.ControllerInfo info) {
@@ -248,9 +276,10 @@ public final class PlaybackService extends MediaSessionService {
         if (!stopOnTaskRemoved && isPlaybackOngoing()) return;
         Log.i(TAG, "Task removed: stopping playback");
         crossfade.cancel();
-        player.pause(); spare.pause();
+        player.pause();
+        if (spare != null) { spare.pause(); spare.stop(); }
         store.save(player);
-        player.stop(); spare.stop();
+        player.stop();
         stopTicking();
         PlayerWidget.publish(this, player);
         stopSelf();
@@ -273,7 +302,7 @@ public final class PlaybackService extends MediaSessionService {
         if (bitmapLoader != null) bitmapLoader.close();
         session.release();
         player.release();
-        spare.release();
+        if (spare != null) spare.release();
         PlayerWidget.prefs(this).edit().putBoolean("playing", false).apply();
         PlayerWidget.refresh(this);
         super.onDestroy();
@@ -462,7 +491,11 @@ public final class PlaybackService extends MediaSessionService {
             channel.measuringDuration = player.getDuration();
     }
 
-    private Channel channelOf(ExoPlayer p) { return p == first.player ? first : p == second.player ? second : null; }
+    private Channel channelOf(ExoPlayer p) {
+        if (p == null) return null;
+        if (first != null && first.player == p) return first;
+        return second != null && second.player == p ? second : null;
+    }
 
     // ---------------------------------------------------------------- statistics
 
@@ -617,7 +650,8 @@ public final class PlaybackService extends MediaSessionService {
         int mode = remote ? C.WAKE_MODE_NETWORK : C.WAKE_MODE_LOCAL;
         if (mode == wakeMode) return;
         wakeMode = mode;
-        player.setWakeMode(mode); spare.setWakeMode(mode);
+        player.setWakeMode(mode);
+        if (spare != null) spare.setWakeMode(mode);
     }
 
     private void rememberPlaying() {
@@ -737,7 +771,7 @@ public final class PlaybackService extends MediaSessionService {
     private void clearEndOfTrack() {
         sleepAtEndOfTrack = false;
         player.setPauseAtEndOfMediaItems(false);
-        spare.setPauseAtEndOfMediaItems(false);
+        if (spare != null) spare.setPauseAtEndOfMediaItems(false);
     }
 
     private Bundle sleepState() {
@@ -828,6 +862,7 @@ public final class PlaybackService extends MediaSessionService {
                 autoplayEnabled = args.getBoolean("autoplayEnabled", autoplayEnabled);
                 stopOnTaskRemoved = args.getBoolean("stopOnTaskRemoved", stopOnTaskRemoved);
                 crossfade.setSeconds(crossfadeSeconds);
+                if (crossfadeSeconds > 0) ensureSpare(); else releaseSpare();
                 options.edit().putInt("crossfadeSeconds", crossfadeSeconds).putBoolean("autoplayEnabled", autoplayEnabled)
                         .putBoolean("stopOnTaskRemoved", stopOnTaskRemoved).apply();
                 return ok(playbackOptions());

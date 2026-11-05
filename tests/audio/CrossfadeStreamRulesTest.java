@@ -31,6 +31,20 @@ public final class CrossfadeStreamRulesTest {
             check(position + delay <= 300_000 - 6_000 - CrossfadeRules.REMOTE_STAGE_LEAD_MS || delay == 100, "no missed staging at " + position);
         }
 
+        // Equal-power ramp: constant combined power, monotonic, exact end points.
+        check(CrossfadeRules.equalPowerIn(0) == 0f && CrossfadeRules.equalPowerOut(0) == 1f, "fade starts with the outgoing song only");
+        check(CrossfadeRules.equalPowerIn(1) == 1f && CrossfadeRules.equalPowerOut(1) < 1e-6f, "fade ends with the incoming song only");
+        float previousIn = -1, previousOut = 2;
+        for (long elapsed = 0; elapsed <= 6000; elapsed += CrossfadeRules.FADE_TICK_MS) {
+            float progress = CrossfadeRules.incomingGain(elapsed, 6000);
+            float in = CrossfadeRules.equalPowerIn(progress), out = CrossfadeRules.equalPowerOut(progress);
+            check(Math.abs(in * in + out * out - 1f) < 1e-5f, "constant power at " + elapsed);
+            check(in >= previousIn && out <= previousOut, "monotonic at " + elapsed);
+            previousIn = in; previousOut = out;
+        }
+        check(Math.abs(CrossfadeRules.equalPowerIn(0.5f) - 0.70710677f) < 1e-6f, "-3 dB each at the midpoint");
+        check(CrossfadeRules.equalPowerIn(-1) == 0f && CrossfadeRules.equalPowerIn(2) == 1f && CrossfadeRules.equalPowerIn(Float.NaN) == 0f, "clamped");
+
         check(CrossfadeRules.sleepFadeGain(10_000, 8_000) == 1f && CrossfadeRules.sleepFadeGain(8_000, 8_000) == 1f, "full volume before the fade");
         check(CrossfadeRules.sleepFadeGain(4_000, 8_000) == 0.5f && CrossfadeRules.sleepFadeGain(0, 8_000) == 0f, "linear fade to silence");
         check(CrossfadeRules.sleepFadeGain(-5, 8_000) == 0f && CrossfadeRules.sleepFadeGain(100, 0) == 1f, "fade edge cases");

@@ -159,5 +159,9 @@ export const ICONS = {
   explicit: [fe(rrect(3.6, 3.6, 16.8, 16.8, 3.4) + 'M9.4,7.8H14.8V9.6H11.5V11.1H14.3V12.9H11.5V14.4H14.8V16.2H9.4Z')],
 };
 
+// The AURA mark ("Refraction") on the icon grid, for placeholders and About screens.
+import { markPaths } from './brand.mjs';
+ICONS.aura = markPaths(20 / 42.6, 12, 12).map((d) => ({ d, mode: 'f' }));
+
 // Legacy GlyphDrawable names used by the 1.x MainActivity.
 export const ALIASES = { down: 'chevron_down', playlists: 'playlist', prev: 'previous' };

@@ -6,6 +6,7 @@ import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.util.LruCache;
 import androidx.media3.common.C;
+import androidx.media3.common.MediaMetadata;
 import androidx.media3.common.util.BitmapLoader;
 import androidx.media3.datasource.DataSource;
 import androidx.media3.datasource.DataSpec;
@@ -34,23 +35,50 @@ public final class LocalBitmapLoader implements BitmapLoader,AutoCloseable {
     };
     private final java.util.Set<SettableFuture<Bitmap>> decoding=new java.util.HashSet<>();
     private boolean closed;
+    private byte[] lastData;
+    private Bitmap lastDecoded;
     public LocalBitmapLoader(Context c){context=c.getApplicationContext();artwork=new Artwork(context,new Library(context));}
     public synchronized void close(){
         closed=true;worker.shutdownNow();artwork.close();
         for(SettableFuture<Bitmap> future:pending.values())future.cancel(false);
         pending.clear();for(SettableFuture<Bitmap> future:decoding)future.cancel(false);decoding.clear();cache.evictAll();
+        lastData=null;lastDecoded=null;
     }
     public boolean supportsMimeType(String mime){return mime!=null&&mime.startsWith("image/");}
     public ListenableFuture<Bitmap> decodeBitmap(byte[] data){
         if(data==null||data.length==0||data.length>MAX_BYTES)return Futures.immediateFailedFuture(new java.io.IOException("Invalid artwork size"));
         SettableFuture<Bitmap> result=SettableFuture.create();
-        synchronized(this){if(closed)return Futures.immediateCancelledFuture();decoding.add(result);}
+        synchronized(this){
+            if(closed)return Futures.immediateCancelledFuture();
+            // Every notification update re-requests the same embedded picture; decode it once.
+            if(lastDecoded!=null&&(data==lastData||java.util.Arrays.equals(data,lastData)))return Futures.immediateFuture(lastDecoded);
+            decoding.add(result);
+        }
         try{worker.execute(()->{
-            try{result.set(decodeSampled(data,data.length));}
+            try{
+                Bitmap bitmap=decodeSampled(data,data.length);
+                synchronized(LocalBitmapLoader.this){if(!closed){lastData=data;lastDecoded=bitmap;}}
+                result.set(bitmap);
+            }
             catch(Exception failure){result.setException(new java.io.IOException("Artwork decoding unavailable"));}
             finally{synchronized(LocalBitmapLoader.this){decoding.remove(result);}}
         });}catch(java.util.concurrent.RejectedExecutionException stopped){synchronized(this){decoding.remove(result);}result.cancel(false);}
         return result;
+    }
+    /**
+     * The player's metadata carries both the file's embedded picture and our artwork URI. A cover
+     * the user chose (or a catalogue cover) wins over the embedded one, which Media3's default
+     * would prefer; the audio file's own URI falls back to the embedded data.
+     */
+    @Override public ListenableFuture<Bitmap> loadBitmapFromMetadata(MediaMetadata metadata){
+        Uri art=metadata.artworkUri;
+        if(art!=null&&!isAudioUri(art))return loadBitmap(art);
+        if(metadata.artworkData!=null)return decodeBitmap(metadata.artworkData);
+        return art==null?null:loadBitmap(art);
+    }
+    private static boolean isAudioUri(Uri uri){
+        String text=uri.toString();
+        return text.startsWith("content://media/")&&text.contains("/audio/");
     }
     public synchronized ListenableFuture<Bitmap> loadBitmap(Uri uri){
         if(closed)return Futures.immediateCancelledFuture();
