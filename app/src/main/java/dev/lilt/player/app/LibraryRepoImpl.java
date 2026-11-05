@@ -102,6 +102,7 @@ public final class LibraryRepoImpl implements LibraryRepo {
     private final Executor io;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final Library library;
+    private final LibraryCache cache;
     private final MoodStore moods;
     private final SavedCatalog saved;
     private final RemoteTrackStore remote;
@@ -113,6 +114,7 @@ public final class LibraryRepoImpl implements LibraryRepo {
     private Model model;
     private boolean loaded, loading, dirty = true, visible, destroyed, scanQueued;
     private long scanGeneration;
+    private boolean scanDone;
     private List<Track> mostPlayed = Collections.emptyList();
     private ContentObserver observer;
     private final Runnable rescanIfDirty = () -> { if (visible && dirty && !loading) refresh(); };
@@ -123,6 +125,7 @@ public final class LibraryRepoImpl implements LibraryRepo {
         this.context = context.getApplicationContext();
         this.io = io;
         library = new Library(this.context);
+        cache = new LibraryCache(this.context);
         moods = new MoodStore(this.context);
         saved = new SavedCatalog(this.context);
         remote = new RemoteTrackStore(this.context);
@@ -190,15 +193,33 @@ public final class LibraryRepoImpl implements LibraryRepo {
         scanQueued = false;
         dirty = false;
         final long generation = ++scanGeneration;
+        scanDone = false;
         final boolean permitted = hasPermission();
         notifyChanged();
+        final boolean needsCache = permitted && !loaded && model.local.isEmpty();
         io.execute(() -> {
-            List<Track> found = new ArrayList<>();
-            if (permitted) {
-                try { found = library.scan(); } catch (RuntimeException failure) { found = model.local; }
+            if (needsCache) {
+                // Show the last scan straight away; the real scan below replaces it.
+                final List<Track> cached = cache.read();
+                if (!cached.isEmpty()) {
+                    final Model early = build(cached);
+                    main.post(() -> {
+                        if (destroyed || generation != scanGeneration || scanDone) return;
+                        model = early;
+                        loaded = true;
+                        notifyChanged();
+                    });
+                }
             }
+            List<Track> found = new ArrayList<>();
+            boolean scanned = false;
+            if (permitted) {
+                try { found = library.scan(); scanned = true; } catch (RuntimeException failure) { found = model.local; }
+            }
+            if (scanned) cache.write(found); else if (!permitted) cache.clear();
             Model built = build(found);
             main.post(() -> {
+                scanDone = true;
                 if (destroyed || generation != scanGeneration) return;
                 model = built;
                 loaded = true;
