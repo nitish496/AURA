@@ -40,8 +40,11 @@ public final class Library {
     public String storeSignature() {
         if(Build.VERSION.SDK_INT<30)return "";
         try {
-            String volume=MediaStore.VOLUME_EXTERNAL_PRIMARY;
-            return MediaStore.getVersion(context,volume)+"#"+MediaStore.getGeneration(context,volume);
+            StringBuilder sig=new StringBuilder();
+            java.util.TreeSet<String> volumes=new java.util.TreeSet<>(MediaStore.getExternalVolumeNames(context));
+            if(volumes.isEmpty())volumes.add(MediaStore.VOLUME_EXTERNAL_PRIMARY);
+            for(String volume:volumes)sig.append(volume).append(':').append(MediaStore.getVersion(context,volume)).append('#').append(MediaStore.getGeneration(context,volume)).append(';');
+            return sig.toString();
         } catch(RuntimeException unavailable) { return ""; }
     }
     public SharedPreferences prefs() { return context.getSharedPreferences("library",Context.MODE_PRIVATE); }

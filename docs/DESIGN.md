@@ -69,7 +69,7 @@ without a graphite plate.
 | separator | white 10% | black 10% | row hairlines (0.5–1dp) |
 | textPrimary | `#F5F5F7` | `#0B0B0C` | titles, body |
 | textSecondary | `#A1A1A8` | `#545459` | subtitles, metadata |
-| textTertiary | `#85858C` | `#6E6E74` | counts, durations. **Never on `fill`** |
+| textTertiary | `#8F8F96` | `#66666C` | counts, durations (passes AA on `fill`) |
 | accent (Ember) | `#FF6A3D` | `#C23A12` | state only |
 | onAccent | `#0B0B0C` | `#FFFFFF` | label on an Ember fill |
 | error | `#FF6961` | `#C4261D` | destructive / failed |

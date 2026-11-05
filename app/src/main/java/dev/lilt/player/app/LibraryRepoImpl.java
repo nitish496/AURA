@@ -224,6 +224,7 @@ public final class LibraryRepoImpl implements LibraryRepo {
                 }
             }
             final boolean haveBaseline = wasLoaded || early != null;
+            String publishSig = signature;
             Model result = null; // null: keep the current model
             if (permitted && haveBaseline && LibraryCache.unchanged(cachedSignature, signature)) {
                 result = early; // MediaStore generation unchanged: no query, no rebuild
@@ -231,7 +232,7 @@ public final class LibraryRepoImpl implements LibraryRepo {
                 List<Track> found = new ArrayList<>();
                 boolean scanned = false;
                 if (permitted) {
-                    try { found = library.scan(); scanned = true; } catch (RuntimeException failure) { found = baseline; }
+                    try { found = library.scan(); scanned = true; } catch (RuntimeException failure) { found = baseline; publishSig = ""; /* retry next time */ }
                 }
                 final boolean same = scanned && sameTracks(found, baseline);
                 if (scanned && (!same || !signature.equals(cachedSignature))) cache.write(found, signature);
@@ -241,11 +242,12 @@ public final class LibraryRepoImpl implements LibraryRepo {
                 else if (!wasLoaded) result = build(baseline);
             }
             final Model published = result;
+            final String publishedSignature = publishSig;
             final Model shownEarly = early;
             main.post(() -> {
                 scanDone = true;
                 if (destroyed || generation != scanGeneration) return;
-                storeSignature = signature;
+                storeSignature = publishedSignature;
                 if (published != null) {
                     boolean already = published == shownEarly && loaded;
                     model = published;

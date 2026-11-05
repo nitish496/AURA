@@ -149,7 +149,7 @@ public class BottomSheet extends FrameLayout {
 
     @Override public boolean onInterceptTouchEvent(MotionEvent e) {
         if (e.getActionMasked() == MotionEvent.ACTION_DOWN) { downY = e.getRawY(); startTranslation = panel.getTranslationY(); }
-        if (e.getActionMasked() == MotionEvent.ACTION_MOVE && e.getRawY() - downY > Ui.dpf(getContext(), 8) && isOnPanel(e)) return true;
+        if (e.getActionMasked() == MotionEvent.ACTION_MOVE && e.getRawY() - downY > Ui.dpf(getContext(), 8) && isOnPanel(e) && !scroller.canScrollVertically(-1)) return true;
         return false;
     }
 

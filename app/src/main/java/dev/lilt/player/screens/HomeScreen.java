@@ -99,6 +99,7 @@ public final class HomeScreen extends ListScreen {
         lastMixesAt = nowMs;
         mixesLoading = true;
         final long now = System.currentTimeMillis();
+        final List<Track> favSnapshot = new ArrayList<>(host.library().favourites()); // main-thread state: copy before leaving the thread
         host.io().execute(() -> {
             List<ListeningLedger.TrackStat> recent = new ArrayList<>(), all = new ArrayList<>();
             try {
@@ -108,7 +109,7 @@ public final class HomeScreen extends ListScreen {
             } catch (RuntimeException ignored) { }
             // Library lookups, mood prefs and the mix maths all run here, not on the main thread.
             List<Mix> built;
-            try { built = computeMixes(recent, all, now); } catch (RuntimeException failure) { built = new ArrayList<>(); }
+            try { built = computeMixes(recent, all, favSnapshot, now); } catch (RuntimeException failure) { built = new ArrayList<>(); }
             final List<Mix> result = built;
             host.main().post(() -> {
                 mixesLoading = false;
@@ -119,7 +120,7 @@ public final class HomeScreen extends ListScreen {
         });
     }
 
-    private List<Mix> computeMixes(List<ListeningLedger.TrackStat> recent, List<ListeningLedger.TrackStat> all, long now) {
+    private List<Mix> computeMixes(List<ListeningLedger.TrackStat> recent, List<ListeningLedger.TrackStat> all, List<Track> favs, long now) {
         List<Mix> out = new ArrayList<>();
         java.util.function.Predicate<String> playable = id -> host.library().find(id) != null;
 
@@ -128,7 +129,6 @@ public final class HomeScreen extends ListScreen {
         List<Track> heavy = resolve(MixRules.heavyRotation(recentIds, playable));
         if (!heavy.isEmpty()) out.add(new Mix("Made for You", "Heavy Rotation", heavy, MIX_TINTS[0]));
 
-        List<Track> favs = host.library().favourites();
         if (favs.size() >= MixRules.MIN_MIX) {
             List<String> ids = new ArrayList<>();
             Map<String, String> albumOf = new HashMap<>();
