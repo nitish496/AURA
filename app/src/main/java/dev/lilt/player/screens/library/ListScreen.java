@@ -69,7 +69,11 @@ public abstract class ListScreen extends Screen {
     /** 0..1: how far the header has scrolled under the bar. */
     protected float collapseProgress(int scrollY) {
         int bottom = titleBottomPx > 0 ? titleBottomPx : insetTop + Ui.dp(context, 40);
-        return ScrollBehavior.collapseProgress(scrollY, bottom, insetTop, Ui.dp(context, 16));
+        // A title whose bottom lies inside the bar band (Home/Library: large title beside the
+        // buttons) must start collapsing only once it scrolls under the status area; with the
+        // full bar bottom, start < 0 and the small title is ~40% visible at scroll 0.
+        int barBottom = bottom > insetTop ? insetTop : Math.max(0, insetTop - Ui.dp(context, DesignTokens.TOP_BAR));
+        return ScrollBehavior.collapseProgress(scrollY, bottom, barBottom, Ui.dp(context, 16));
     }
     protected void onInsetsChanged() {}
     protected void onScrolled(int scrollY) {}
