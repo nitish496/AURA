@@ -19,7 +19,8 @@ import java.util.concurrent.*;
 
 public final class Artwork {
     private final Context context;private final Library library;
-    private final ExecutorService worker=Executors.newFixedThreadPool(3);
+    // 4 decoders; a thread-pool reference so background pre-loading can yield to visible covers.
+    private final ThreadPoolExecutor worker=new ThreadPoolExecutor(4,4,30,TimeUnit.SECONDS,new LinkedBlockingQueue<>(),r->{Thread t=new Thread(r,"AuraCover");t.setDaemon(true);return t;});
     // PNG encoding never occupies a visible-cover decoder. Bounded queue limits retained bitmaps.
     private static final ThreadPoolExecutor diskWriter=new ThreadPoolExecutor(1,1,30,TimeUnit.SECONDS,new ArrayBlockingQueue<>(4),new ThreadPoolExecutor.AbortPolicy());
     private boolean submit(Runnable task){if(closed)return false;try{worker.execute(task);return true;}catch(RejectedExecutionException ignored){return false;}}
@@ -37,8 +38,10 @@ public final class Artwork {
     }
     private static final LruCache<String,Bitmap> placeholders=new LruCache<String,Bitmap>(2*1024){@Override protected int sizeOf(String key,Bitmap b){return b.getByteCount()/1024;}};
     private final Map<String,List<WeakReference<ImageView>>> requests=new HashMap<>();
-    private static final LruCache<String,Bitmap> cache=new LruCache<String,Bitmap>(24*1024){@Override protected int sizeOf(String key,Bitmap b){return b.getByteCount()/1024;}};
-    private static final LruCache<String,Bitmap> largeCache=new LruCache<String,Bitmap>(8*1024){@Override protected int sizeOf(String key,Bitmap b){return Math.max(1,b.getByteCount()/1024);}};
+    private static final LruCache<String,Bitmap> cache=new LruCache<String,Bitmap>(32*1024){@Override protected int sizeOf(String key,Bitmap b){return b.getByteCount()/1024;}};
+    // Home shelves render at the 900px bucket (3.2MB each): 8MB held two covers and thrashed. ~1/16 of the heap, 24-48MB.
+    private static final int LARGE_KB=(int)Math.max(24*1024,Math.min(48*1024,Runtime.getRuntime().maxMemory()/16/1024));
+    private static final LruCache<String,Bitmap> largeCache=new LruCache<String,Bitmap>(LARGE_KB){@Override protected int sizeOf(String key,Bitmap b){return Math.max(1,b.getByteCount()/1024);}};
     private static volatile long lastPrune;
     public void logStats(){int pending;synchronized(requests){pending=requests.size();}android.util.Log.d("AuraArtwork",diagnostics()+" pending="+pending);}
     private static final java.util.concurrent.atomic.AtomicLong memoryHits=new java.util.concurrent.atomic.AtomicLong(),viewHits=new java.util.concurrent.atomic.AtomicLong(),diskHits=new java.util.concurrent.atomic.AtomicLong(),extractions=new java.util.concurrent.atomic.AtomicLong();
@@ -63,6 +66,45 @@ public final class Artwork {
     }
     /** Album covers are shared per album, so a retagged cover is picked up within a week: the identity changes weekly. */
     private static long albumEpoch(){return System.currentTimeMillis()/(7L*24*60*60*1000);}
+    private final Runnable[] idleLoop=new Runnable[1];
+    private int idleCursor;
+    private volatile List<Track> idleTracks=Collections.emptyList();
+    private static final int IDLE_MAX=600;
+
+    /**
+     * Pre-loads covers so they are already in memory and on disk when a screen binds (the old AURA
+     * warmed the first shelves while its start-up screen was showing; 2.0 only loaded on bind).
+     * {@code urgent} covers (first shelves) load right away at {@code cardPx} and row size; the rest
+     * of {@code everyAlbum} trickles in one at a time, only while no visible cover is waiting.
+     */
+    public void warmLibrary(List<Track> urgent,List<Track> everyAlbum,int cardPx){
+        if(closed)return;
+        int rowPx=(int)(56*context.getResources().getDisplayMetrics().density);
+        for(Track t:urgent.subList(0,Math.min(urgent.size(),36))){
+            if(t==null||t.isRemote())continue;
+            preload(t,cardPx);preload(t,rowPx);
+        }
+        idleTracks=new ArrayList<>(everyAlbum.subList(0,Math.min(everyAlbum.size(),IDLE_MAX)));
+        idleCursor=0;
+        if(idleLoop[0]!=null)main.removeCallbacks(idleLoop[0]);
+        idleLoop[0]=new Runnable(){public void run(){
+            if(closed)return;
+            List<Track> list=idleTracks;
+            if(idleCursor>=list.size())return;
+            // Yield to covers the user is waiting for.
+            if(worker.getQueue().isEmpty()&&worker.getActiveCount()<2){
+                Track t=list.get(idleCursor++);
+                if(t!=null&&!t.isRemote())preload(t,rowPx);
+            }
+            main.postDelayed(this,idleCursor<list.size()?90:0);
+        }};
+        main.postDelayed(idleLoop[0],1500);
+    }
+    private void preload(Track t,int px){
+        ImageView v=new ImageView(context);
+        v.setLayoutParams(new android.view.ViewGroup.LayoutParams(px,px));
+        load(v,t);
+    }
     public void load(ImageView view,Track track) {
         if(closed)return;
         if(track.isRemote()){loadRemote(view,track);return;}

@@ -807,15 +807,52 @@ public final class Shell implements AppHost, Navigator {
 
     // ------------------------------------------------------------------ change notifications
 
+    private int warmedFor = -1;
+
+    /** Once per library size: load the covers of the first shelves now, the rest while idle. */
+    private void warmCovers() {
+        if (!repo.ready() || repo.loading()) return;
+        List<Track> all = repo.localTracks();
+        if (all.isEmpty() || all.size() == warmedFor) return;
+        warmedFor = all.size();
+        List<Track> urgent = new ArrayList<>();
+        urgent.addAll(repo.recentlyPlayed(12));
+        urgent.addAll(repo.recentlyAdded(12));
+        urgent.addAll(repo.favourites().subList(0, Math.min(12, repo.favourites().size())));
+        List<Track> albumCovers = new ArrayList<>();
+        for (AlbumGroup g : repo.albums()) { Track c = g.cover(); if (c != null) albumCovers.add(c); }
+        int cardPx = Ui.dp(activity, ShelfMetrics.squareCard(contentWidthDp()));
+        artwork.warmLibrary(urgent, albumCovers, cardPx);
+    }
+
     private void libraryChanged() {
         if (destroyed) return;
+        warmCovers();
         updateGate();
         for (Tab t : Tab.values()) for (Entry e : stacks.get(t)) if (e.screen.hasView()) e.screen.onLibraryChanged();
         for (Entry e : presented) if (e.screen.hasView()) e.screen.onLibraryChanged();
     }
 
+    private String prefetchedFor = "";
+
+    /** Covers of the songs around the current one, so skipping tracks never waits on artwork. */
+    private void prefetchNeighbours() {
+        Track current = hub.current();
+        if (current == null || current.id.equals(prefetchedFor)) return;
+        prefetchedFor = current.id;
+        List<Track> queue = hub.queue();
+        int at = hub.index();
+        if (queue == null || at < 0 || at >= queue.size()) return;
+        List<Track> near = new ArrayList<>();
+        for (int i = Math.max(0, at - 1); i <= Math.min(queue.size() - 1, at + 3); i++) if (i != at && !queue.get(i).isRemote()) near.add(queue.get(i));
+        if (near.isEmpty()) return;
+        artwork.prefetch(near, Ui.dp(activity, 44));
+        artwork.prefetch(near, Ui.dp(activity, 340));
+    }
+
     private void playbackChanged() {
         if (destroyed) return;
+        prefetchNeighbours();
         syncMini();
         for (Tab t : Tab.values()) for (Entry e : stacks.get(t)) if (e.screen.hasView()) e.screen.onPlaybackChanged();
         for (Entry e : presented) if (e.screen.hasView()) e.screen.onPlaybackChanged();
