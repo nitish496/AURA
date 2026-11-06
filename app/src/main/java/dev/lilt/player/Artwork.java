@@ -61,13 +61,15 @@ public final class Artwork {
         long earliest=android.os.SystemClock.uptimeMillis()+1000;long deadline=earliest+800;
         main.post(new Runnable(){public void run(){boolean pending;synchronized(requests){pending=!requests.isEmpty();}if(closed)return;if((!pending&&android.os.SystemClock.uptimeMillis()>=earliest)||android.os.SystemClock.uptimeMillis()>=deadline){held.clear();done.run();}else main.postDelayed(this,30);}});
     }
+    /** Album covers are shared per album, so a retagged cover is picked up within a week: the identity changes weekly. */
+    private static long albumEpoch(){return System.currentTimeMillis()/(7L*24*60*60*1000);}
     public void load(ImageView view,Track track) {
         if(closed)return;
         if(track.isRemote()){loadRemote(view,track);return;}
         Uri custom=library.artwork(track);int size=displaySize(view);// Local covers are keyed per ALBUM (one extraction + one disk file shared by its tracks) when
         // MediaStore gives an album id and there is no custom cover; custom covers keep per-track identity.
         final boolean albumScoped=custom==null&&track.albumId>0;
-        String sourceIdentity=albumScoped?"album:"+track.albumId+":"+track.albumKey():track.id+":"+track.uri+":"+track.dateAdded+":"+custom;String identity=sourceIdentity+":"+size;LruCache<String,Bitmap> rendered=rendered(size);
+        String sourceIdentity=albumScoped?"album:"+track.albumId+":"+track.albumKey()+":w"+albumEpoch():track.id+":"+track.uri+":"+track.dateAdded+":"+custom;String identity=sourceIdentity+":"+size;LruCache<String,Bitmap> rendered=rendered(size);
         if(identity.equals(view.getTag())&&view.getDrawable()!=null){viewHits.incrementAndGet();return;}
         view.setTag(identity);view.setContentDescription("Album cover for "+track.album);view.setClipToOutline(true);
         String key=identity;

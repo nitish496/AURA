@@ -156,7 +156,7 @@ public final class QueueScreen extends Screen {
         });
         autoplayButton = toggleButton(R.drawable.ic_autoplay, "Autoplay", v -> setAutoplay(!autoplay));
         for (ImageView b : new ImageView[] {shuffleButton, repeatButton, autoplayButton}) {
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(Ui.dp(context, 44), Ui.dp(context, 36));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(Ui.dp(context, 48), Ui.dp(context, 48));
             lp.setMarginStart(Ui.dp(context, 8));
             row.addView(b, lp);
         }
@@ -204,21 +204,27 @@ public final class QueueScreen extends Screen {
         return t;
     }
 
+    /** 36dp-tall capsule inside a 48dp touch target. */
+    private android.graphics.drawable.Drawable pill(int color) {
+        int inset = Ui.dp(context, 6);
+        return new android.graphics.drawable.InsetDrawable(Ui.roundRect(color, -1), 0, inset, 0, inset);
+    }
+
     private ImageView toggleButton(int icon, String description, View.OnClickListener click) {
         ImageView v = new ImageView(context);
         v.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
         int p = Ui.dp(context, 8);
-        v.setPadding(p, p, p, p);
+        v.setPadding(p, p + Ui.dp(context, 6), p, p + Ui.dp(context, 6));
         v.setContentDescription(description);
         v.setImageDrawable(Icons.get(context, icon, ON_PRIMARY));
-        v.setBackground(Ui.roundRect(0x1FFFFFFF, -1));
+        v.setBackground(pill(0x1FFFFFFF));
         v.setOnClickListener(click);
         return v;
     }
 
     private void styleToggle(ImageView v, int icon, boolean on, String description) {
         v.setImageDrawable(Icons.get(context, icon, on ? 0xFF151517 : ON_PRIMARY));
-        v.setBackground(Ui.roundRect(on ? 0xFFF5F5F7 : 0x1FFFFFFF, -1));
+        v.setBackground(pill(on ? 0xFFF5F5F7 : 0x1FFFFFFF));
         v.setSelected(on);
         v.setContentDescription(description);
     }
@@ -238,9 +244,11 @@ public final class QueueScreen extends Screen {
         hp.setMarginEnd(Ui.dp(context, 24) - (more.size() - Ui.dp(context, 36)) / 2);
         header.setLayoutParams(hp);
         FrameLayout.LayoutParams cp = (FrameLayout.LayoutParams) capsule.getLayoutParams();
-        cp.bottomMargin = insetBottom + Ui.dp(context, 12);
+        cp.bottomMargin = insetBottom + Ui.dp(context, dev.lilt.player.ui.ShelfMetrics.compactChrome(context.getResources().getConfiguration().screenHeightDp) ? 8 : 12);
         capsule.setLayoutParams(cp);
-        list.setPadding(0, insetTop + Ui.dp(context, 12 + 48 + 4), 0, insetBottom + Ui.dp(context, 12 + 52 + 16));
+        boolean compact = dev.lilt.player.ui.ShelfMetrics.compactChrome(context.getResources().getConfiguration().screenHeightDp);
+        // Short (landscape) windows: tighter gaps around the header and capsule, same clearance for the last row.
+        list.setPadding(0, insetTop + Ui.dp(context, compact ? 12 + 48 : 12 + 48 + 4), 0, insetBottom + Ui.dp(context, compact ? 8 + 52 + 8 : 12 + 52 + 16));
     }
 
     @Override public void onShow() {
