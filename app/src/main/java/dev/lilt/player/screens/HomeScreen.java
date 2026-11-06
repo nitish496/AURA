@@ -210,20 +210,21 @@ public final class HomeScreen extends ListScreen {
             items.add(emptyState());
             return items;
         }
+        // Order the owner asked for: Liked Songs, Recently Played, Recently Added, then the rest.
+        final List<Track> liked = new ArrayList<>(host.library().favourites());
+        items.add(Kit.section(context, roles, "Liked Songs", () -> host.nav().push(new SongsScreen("favourites"))));
+        if (liked.isEmpty()) items.add(emptyLine("Songs you like with the heart appear here."));
+        else items.add(trackShelf(liked.size() > 30 ? new ArrayList<>(liked.subList(0, 30)) : liked));
+
         List<AlbumGroup> recent = albumsOf(host.library().recentlyPlayed(40), 12);
-        if (!recent.isEmpty()) {
-            items.add(Kit.section(context, roles, "Recently Played", () -> host.nav().push(new SongsScreen("recent"))));
-            items.add(Kit.albumShelf(host, recent));
-        }
+        items.add(Kit.section(context, roles, "Recently Played", () -> host.nav().push(new SongsScreen("recent"))));
+        if (recent.isEmpty()) items.add(emptyLine("Songs you play appear here."));
+        else items.add(Kit.albumShelf(host, recent));
+
         List<AlbumGroup> added = albumsOf(host.library().recentlyAdded(60), 12);
         if (!added.isEmpty()) {
             items.add(Kit.section(context, roles, "Recently Added", () -> host.nav().push(new SongsScreen("added"))));
             items.add(Kit.albumShelf(host, added));
-        }
-        final List<Track> liked = new ArrayList<>(host.library().favourites());
-        if (!liked.isEmpty()) {
-            items.add(Kit.section(context, roles, "Liked Songs", () -> host.nav().push(new SongsScreen("favourites"))));
-            items.add(trackShelf(liked.size() > 30 ? new ArrayList<>(liked.subList(0, 30)) : liked));
         }
         if (!mixes.isEmpty()) {
             items.add(Kit.section(context, roles, "Top Picks for You", null));
@@ -235,6 +236,12 @@ public final class HomeScreen extends ListScreen {
         }
         items.add(Kit.spacer(context, 16));
         return items;
+    }
+
+    private View emptyLine(String text) {
+        TextView t = Kit.footnote(context, roles, text);
+        t.setPadding(Ui.dp(context, 16), Ui.dp(context, 4), Ui.dp(context, 16), Ui.dp(context, 8));
+        return t;
     }
 
     private View emptyState() {
